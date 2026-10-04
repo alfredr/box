@@ -1,0 +1,29 @@
+# Edit this site with `box edit {{.Name}}`.
+name: {{.Name}}
+
+x-box:
+  # Checks deploy auto services, report manual updates, and skip pinned services.
+  # Services omitted from this mapping use manual.
+  update:
+    app: {{.Policy}}
+
+services:
+  app:
+    image: {{.Image}}
+    restart: unless-stopped
+    # {{.Network}} provides proxy access. default connects services within this site.
+    networks: [{{.Network}}, default]
+    labels:
+{{- if .Redirects}}
+      caddy_0: {{quote (join .Domains ", ")}}
+      caddy_0.reverse_proxy: {{quote (upstreams .Port)}}
+      caddy_1: {{quote (join .Redirects ", ")}}
+      caddy_1.redir: {{quote (printf "https://%s{uri} permanent" (index .Domains 0))}}
+{{- else}}
+      caddy: {{quote (join .Domains ", ")}}
+      caddy.reverse_proxy: {{quote (upstreams .Port)}}
+{{- end}}
+
+networks:
+  {{.Network}}:
+    external: true

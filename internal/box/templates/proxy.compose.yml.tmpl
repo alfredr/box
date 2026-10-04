@@ -1,0 +1,20 @@
+# box rewrites this proxy definition during startup and proxy setting changes.
+name: {{.Project}}
+
+services:
+  caddy:
+    image: {{.Image}}
+    restart: unless-stopped
+    # Bind HTTP and HTTPS on the host and reach the box API through loopback.
+    network_mode: host
+    environment:
+      CADDY_INGRESS_NETWORKS: {{.Network}}
+      CADDY_DOCKER_CADDYFILE_PATH: /etc/caddy/Caddyfile
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Mount the directory so atomic Caddyfile replacements remain visible.
+      - ./caddy:/etc/caddy:ro
+      - caddy_data:/data
+
+volumes:
+  caddy_data: {}

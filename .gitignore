@@ -1,0 +1,11 @@
+/box
+*.test
+*.prof
+/coverage.out
+/coverage.html
+
+# Local workspace files may refer to sibling checkouts.
+/go.work
+/go.work.sum
+
+.DS_Store

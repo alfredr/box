@@ -1,0 +1,15 @@
+# box rewrites this base configuration during startup and proxy setting changes.
+{{- if .Email}}
+{
+	email {{.Email}}
+}
+{{- end}}
+{{- if .Domain}}
+
+{{.Domain}} {
+	reverse_proxy {{.Listen}} {
+		# Forward log stream output immediately.
+		flush_interval -1
+	}
+}
+{{- end}}

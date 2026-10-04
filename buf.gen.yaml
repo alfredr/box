@@ -1,0 +1,14 @@
+version: v2
+managed:
+  enabled: false
+plugins:
+  # Use the generator versions declared as tools in go.mod.
+  - local: [go, tool, protoc-gen-go]
+    out: internal/gen
+    opt: paths=source_relative
+  # Generate handlers and clients that accept protobuf messages directly.
+  - local: [go, tool, protoc-gen-connect-go]
+    out: internal/gen
+    opt:
+      - paths=source_relative
+      - simple

@@ -1,0 +1,349 @@
+syntax = "proto3";
+
+package box.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/alfredr/box/internal/gen/box/v1;boxv1";
+// BoxService manages sites and server settings. All RPC requests require the server API key
+// signature described by internal/sign. Site webhook secrets cannot authenticate these calls.
+service BoxService {
+  // Version returns the server build identifier.
+  rpc Version(VersionRequest) returns (VersionResponse);
+  // Status returns server settings and site states. Failures to read individual sites are
+  // included in the response.
+  rpc Status(StatusRequest) returns (StatusResponse);
+  // GetSite returns the definition, container state, and image history for one site.
+  rpc GetSite(GetSiteRequest) returns (GetSiteResponse);
+  // CreateSite saves a site and webhook secret, then optionally deploys it. A deployment
+  // failure leaves the site files in place.
+  rpc CreateSite(CreateSiteRequest) returns (CreateSiteResponse);
+  // RemoveSite stops a site and removes its secret and record. Purge also deletes the site
+  // directory and Compose-managed volumes.
+  rpc RemoveSite(RemoveSiteRequest) returns (RemoveSiteResponse);
+  // Deploy pulls eligible images and starts the requested services. Failed startup triggers an
+  // attempt to restore earlier images. Work continues after a client disconnect.
+  rpc Deploy(DeployRequest) returns (DeployResponse);
+  // Check pulls non-pinned images and applies each service update policy. Checks skip rejected
+  // images and do not deploy services without containers.
+  rpc Check(CheckRequest) returns (CheckResponse);
+  // Rollback restores recorded previous images and excludes the replaced images from subsequent
+  // checks. It does not restore configuration or volume data.
+  rpc Rollback(RollbackRequest) returns (RollbackResponse);
+  // Logs streams container output. Client cancellation ends the stream.
+  rpc Logs(LogsRequest) returns (stream LogsResponse);
+  // GetCompose returns the stored site Compose file.
+  rpc GetCompose(GetComposeRequest) returns (GetComposeResponse);
+  // ApplyCompose validates and applies an edited file. Failed startup triggers an attempt to
+  // restore and apply the old file.
+  rpc ApplyCompose(ApplyComposeRequest) returns (ApplyComposeResponse);
+  // GetConfig lists supported settings and their effective values.
+  rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
+  // SetConfig validates and saves a setting. Notification URLs must accept a test message
+  // before they are saved.
+  rpc SetConfig(SetConfigRequest) returns (SetConfigResponse);
+  // GetHook returns a site webhook URL and secret, creating the secret if needed.
+  rpc GetHook(GetHookRequest) returns (GetHookResponse);
+  // RotateHook replaces a site webhook secret and returns the new value. The previous secret
+  // stops working after replacement.
+  rpc RotateHook(RotateHookRequest) returns (RotateHookResponse);
+  // ListHooks returns webhook URLs without secrets.
+  rpc ListHooks(ListHooksRequest) returns (ListHooksResponse);
+  // RotateKey saves a replacement API key and uses it for subsequent requests. This call must
+  // be signed with the current key.
+  rpc RotateKey(RotateKeyRequest) returns (RotateKeyResponse);
+  // DockerInfo reports Docker versions, daemon configuration, registry names, and disk usage.
+  rpc DockerInfo(DockerInfoRequest) returns (DockerInfoResponse);
+  // DockerLogin saves registry credentials through the server Docker CLI for site image pulls.
+  rpc DockerLogin(DockerLoginRequest) returns (DockerLoginResponse);
+}
+// Change records the image IDs before and after an operation on one service.
+message Change {
+  string service = 1;
+  // From is empty if no container existed before the operation.
+  string from = 2;
+  string to = 3;
+}
+// Service combines a Compose definition with inspected container state and recorded image
+// history.
+message Service {
+  string name = 1;
+  // Image is the literal reference from the Compose file.
+  string image = 2;
+  // Policy is auto, manual, or pinned.
+  string policy = 3;
+  // State includes health information when available, such as "running (healthy)".
+  string state = 4;
+  // Running is the image ID used to create the inspected container, even if it is stopped.
+  string running = 5;
+  // Previous is the retained image ID from the last image change for this service.
+  string previous = 6;
+  // Pending is an image ID recorded for manual deployment.
+  string pending = 7;
+  // Rejected is an image ID skipped by checks after a failed deployment or rollback.
+  string rejected = 8;
+}
+// Site contains the current site definition, service states, and saved operation results. Unset
+// timestamps indicate that no corresponding operation was recorded.
+message Site {
+  string name = 1;
+  repeated string domains = 2;
+  repeated Service services = 3;
+  google.protobuf.Timestamp deployed_at = 4;
+  google.protobuf.Timestamp checked_at = 5;
+  // Result describes the recorded deployment or rollback outcome.
+  string result = 6;
+  // CheckError holds the most recent image pull failure. A successful pull check clears it.
+  string check_error = 7;
+}
+// Hook contains the URL and optional secret for one site webhook. List responses omit the
+// secret.
+message Hook {
+  string site = 1;
+  string url = 2;
+  string secret = 3;
+}
+
+// VersionRequest requests the server build identifier.
+message VersionRequest {}
+
+// VersionResponse contains the server build identifier.
+message VersionResponse {
+  string version = 1;
+}
+
+// StatusRequest requests server state and all available site states.
+message StatusRequest {}
+
+// StatusResponse combines server settings, polling state, and site results. Errors for
+// individual sites do not discard other site results.
+message StatusResponse {
+  string version = 1;
+  string domain = 2;
+  string proxy = 3;
+  // Poll is a Go duration string or off.
+  string poll = 4;
+  google.protobuf.Timestamp last_check = 5;
+  // NextCheck is absent when polling is disabled or no check has been scheduled yet.
+  google.protobuf.Timestamp next_check = 6;
+  string notify = 7;
+  repeated Site sites = 8;
+  // Errors maps site names to failures encountered while reading their status.
+  map<string, string> errors = 9;
+}
+
+// GetSiteRequest selects a site by its stored name.
+message GetSiteRequest {
+  string site = 1;
+}
+
+// GetSiteResponse contains the selected site and its service states.
+message GetSiteResponse {
+  Site site = 1;
+}
+
+// CreateSiteRequest defines a new Compose project with one app service behind Caddy. Image,
+// domains, port, and policy must be supplied explicitly.
+message CreateSiteRequest {
+  string name = 1;
+  string image = 2;
+  // Domains must contain at least one lowercase DNS name. The first is the redirect destination.
+  repeated string domains = 3;
+  // Redirects lists domains that receive permanent redirects to the first domain.
+  repeated string redirects = 4;
+  // Port is the app container port used by Caddy and must be between 1 and 65535.
+  int32 port = 5;
+  string policy = 6;
+  // Deploy starts the site after saving its files when true.
+  bool deploy = 7;
+}
+
+// CreateSiteResponse contains the webhook credentials and any image changes from the initial
+// deployment.
+message CreateSiteResponse {
+  repeated Change changes = 1;
+  // Hook is absent if the server has no configured domain.
+  Hook hook = 2;
+}
+
+// RemoveSiteRequest selects a site and whether to delete its files and volumes.
+message RemoveSiteRequest {
+  string site = 1;
+  // Purge deletes the site directory and Compose-managed volumes. Otherwise the directory is
+  // moved under removed/ and volumes are retained.
+  bool purge = 2;
+}
+
+// RemoveSiteResponse identifies the retained site directory, if any.
+message RemoveSiteResponse {
+  // Kept is the retained directory path on the server. It is empty after a purge.
+  string kept = 1;
+}
+
+// DeployRequest selects a site and optional services for deployment.
+message DeployRequest {
+  string site = 1;
+  // Services selects which services to deploy. An empty list selects all services.
+  repeated string services = 2;
+}
+
+// DeployResponse lists service image changes from a successful deployment.
+message DeployResponse {
+  repeated Change changes = 1;
+}
+
+// CheckRequest selects sites for image checks.
+message CheckRequest {
+  // Sites selects which sites to check. An empty list selects all sites.
+  repeated string sites = 1;
+}
+
+// CheckResult reports automatic deployments, newly discovered manual updates, and any failure
+// for one site.
+message CheckResult {
+  string site = 1;
+  repeated Change deployed = 2;
+  // Waiting contains only manual updates newly recorded by this check.
+  repeated Change waiting = 3;
+  string error = 4;
+}
+
+// CheckResponse contains a result for each completed site check, including checks that failed.
+message CheckResponse {
+  repeated CheckResult results = 1;
+}
+
+// RollbackRequest selects a site whose previous images should be restored.
+message RollbackRequest {
+  string site = 1;
+}
+
+// RollbackResponse lists the service image changes made by a successful rollback.
+message RollbackResponse {
+  repeated Change changes = 1;
+}
+
+// LogsRequest selects container logs and controls how much output to return.
+message LogsRequest {
+  string site = 1;
+  // Services limits output to the named services. An empty list includes all site services.
+  repeated string services = 2;
+  // Tail is the requested line count per container. Values less than or equal to zero use 100.
+  int32 tail = 3;
+  // Follow keeps the stream open for new output until the client cancels or the log command
+  // exits.
+  bool follow = 4;
+}
+
+// LogsResponse contains one chunk of container output. Message boundaries need not match line
+// boundaries.
+message LogsResponse {
+  bytes data = 1;
+}
+
+// GetComposeRequest selects the site Compose file to read.
+message GetComposeRequest {
+  string site = 1;
+}
+
+// GetComposeResponse contains the stored Compose YAML without normalization.
+message GetComposeResponse {
+  string text = 1;
+}
+
+// ApplyComposeRequest supplies a complete replacement Compose file for an existing site.
+message ApplyComposeRequest {
+  string site = 1;
+  string text = 2;
+}
+
+// ApplyComposeResponse confirms that the edited site was applied successfully.
+message ApplyComposeResponse {}
+
+// GetConfigRequest requests all supported server settings.
+message GetConfigRequest {}
+
+// Setting pairs a supported configuration key with its string value.
+message Setting {
+  string key = 1;
+  string value = 2;
+}
+
+// GetConfigResponse lists settings in CLI display order and includes the default poll value
+// when unset.
+message GetConfigResponse {
+  repeated Setting settings = 1;
+}
+
+// SetConfigRequest supplies one configuration key and its replacement value.
+message SetConfigRequest {
+  string key = 1;
+  string value = 2;
+}
+
+// SetConfigResponse confirms that the setting and any required proxy or polling updates
+// succeeded.
+message SetConfigResponse {}
+
+// GetHookRequest selects a site whose webhook URL and secret should be returned.
+message GetHookRequest {
+  string site = 1;
+}
+
+// GetHookResponse contains a site webhook URL and secret.
+message GetHookResponse {
+  Hook hook = 1;
+}
+
+// RotateHookRequest selects a site whose webhook secret should be replaced.
+message RotateHookRequest {
+  string site = 1;
+}
+
+// RotateHookResponse contains the site URL and replacement webhook secret.
+message RotateHookResponse {
+  Hook hook = 1;
+}
+
+// ListHooksRequest requests the webhook URLs for all sites.
+message ListHooksRequest {}
+
+// ListHooksResponse contains webhook URLs with the secret fields omitted.
+message ListHooksResponse {
+  repeated Hook hooks = 1;
+}
+
+// RotateKeyRequest supplies the replacement server API key.
+message RotateKeyRequest {
+  // Key must contain exactly 64 lowercase hexadecimal digits.
+  string key = 1;
+}
+
+// RotateKeyResponse confirms that the stored and in-memory API keys were replaced.
+message RotateKeyResponse {}
+
+// DockerInfoRequest requests the server Docker configuration and usage report.
+message DockerInfoRequest {}
+
+// DockerInfoResponse contains Docker versions, network and proxy state, daemon settings,
+// registry names, and disk usage.
+message DockerInfoResponse {
+  string engine = 1;
+  string compose = 2;
+  // Network reports whether Docker can inspect the shared web network.
+  bool network = 3;
+  string proxy = 4;
+  repeated string daemon = 5;
+  repeated string registries = 6;
+  string disk = 7;
+}
+
+// DockerLoginRequest supplies credentials to save in the server Docker CLI configuration.
+message DockerLoginRequest {
+  string registry = 1;
+  string username = 2;
+  string password = 3;
+}
+
+// DockerLoginResponse confirms that registry login succeeded.
+message DockerLoginResponse {}
