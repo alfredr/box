@@ -44,6 +44,8 @@ func changeLines(cs []Change) string {
 // services that are not pinned and waits for Compose startup checks. A failed startup triggers
 // an attempt to restore the earlier images. The site lock covers deployment and recovery.
 func Deploy(ctx context.Context, cfg Config, name string, only []string) ([]Change, error) {
+	defer tidy(ctx)
+
 	unlock, err := lockSite(name)
 	if err != nil {
 		return nil, err
@@ -109,6 +111,7 @@ func deploy(ctx context.Context, cfg Config, site Site, svcs []Service, partial,
 		for _, s := range svcs {
 			if id := after[s.Name]; id != "" && id != before[s.Name] {
 				put(&rec.Rejected, s.Name, id)
+				hold(ctx, site.Name, s, id)
 			}
 		}
 
@@ -227,7 +230,8 @@ func settle(ctx context.Context, site Site, svcs []Service, before, after map[st
 			delete(rec.Pending, s.Name)
 		}
 
-		if pulled {
+		if pulled && rec.Rejected[s.Name] != "" {
+			release(ctx, site.Name, s.Name)
 			delete(rec.Rejected, s.Name)
 		}
 
@@ -290,6 +294,8 @@ func swapKept(ctx context.Context, site, service string) {
 // records the replaced images as rejected so checks skip them. It does not restore Compose
 // configuration or volume data.
 func Rollback(ctx context.Context, cfg Config, name string) ([]Change, error) {
+	defer tidy(ctx)
+
 	unlock, err := lockSite(name)
 	if err != nil {
 		return nil, err
@@ -346,6 +352,7 @@ func Rollback(ctx context.Context, cfg Config, name string) ([]Change, error) {
 
 		if from != "" && from != to {
 			put(&rec.Previous, s.Name, from)
+			release(ctx, name, s.Name)
 			put(&rec.Rejected, s.Name, from)
 			swapKept(ctx, name, s.Name)
 			changes = append(changes, Change{Service: s.Name, From: from, To: to})
@@ -379,6 +386,12 @@ type CheckResult struct {
 // recorded and announced once. The site lock is held for the entire check.
 func Check(ctx context.Context, cfg Config, name string) CheckResult {
 	r := CheckResult{Site: name}
+	defer func() {
+		if len(r.Deployed)+len(r.Waiting) > 0 {
+			tidy(ctx)
+		}
+	}()
+
 	unlock, err := lockSite(name)
 	if err != nil {
 		r.Err = err
@@ -538,6 +551,8 @@ func ReadCompose(name string) ([]byte, error) {
 // If startup fails, it attempts to restore and apply the old file. The site lock covers the
 // entire operation.
 func Apply(ctx context.Context, cfg Config, name string, compose []byte) error {
+	defer tidy(ctx)
+
 	unlock, err := lockSite(name)
 	if err != nil {
 		return err
@@ -619,6 +634,8 @@ func Apply(ctx context.Context, cfg Config, name string, compose []byte) error {
 // deletes Compose-managed volumes and the site directory. Otherwise it preserves volumes, moves
 // the directory under removed/, and returns that path.
 func Remove(ctx context.Context, name string, purge bool) (string, error) {
+	defer tidy(ctx)
+
 	unlock, err := lockSite(name)
 	if err != nil {
 		return "", err
@@ -626,7 +643,8 @@ func Remove(ctx context.Context, name string, purge bool) (string, error) {
 
 	defer unlock()
 
-	if _, err := LoadSite(name); err != nil {
+	site, err := LoadSite(name)
+	if err != nil {
 		return "", err
 	}
 
@@ -639,6 +657,7 @@ func Remove(ctx context.Context, name string, purge bool) (string, error) {
 		return "", err
 	}
 
+	forget(ctx, site)
 	os.Remove(secretPath(name))
 	os.Remove(recordPath(name))
 

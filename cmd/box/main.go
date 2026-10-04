@@ -61,6 +61,7 @@ Settings
   box hook url [site] | rotate <site>     webhook addresses and secrets for CI
   box key rotate                          replace the API key
   box docker check | login [registry]     the server's Docker, and registry logins
+  box prune                               remove images nothing uses or names
   box version
 
 --server NAME (or BOX_SERVER) picks a saved server when there are several.
@@ -131,6 +132,7 @@ func dispatch(ctx context.Context, serverName, cmd string, args []string) error 
 		"hook":     cmdHook,
 		"key":      cmdKey,
 		"docker":   cmdDocker,
+		"prune":    cmdPrune,
 	}
 	f, ok := commands[cmd]
 	if !ok {
@@ -1107,6 +1109,21 @@ func dockerLogin(ctx context.Context, c *conn, args []string) error {
 	}
 
 	fmt.Printf("The server is logged in to %s.\n", registry)
+	return nil
+}
+
+func cmdPrune(ctx context.Context, c *conn, args []string) error {
+	if len(args) > 0 {
+		fmt.Fprint(os.Stderr, "usage: box prune\n")
+		return errUsage
+	}
+
+	out, err := c.api.Prune(ctx, &boxv1.PruneRequest{})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("reclaimed %s\n", out.Reclaimed)
 	return nil
 }
 

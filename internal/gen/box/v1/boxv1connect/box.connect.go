@@ -71,6 +71,8 @@ const (
 	BoxServiceDockerInfoProcedure = "/box.v1.BoxService/DockerInfo"
 	// BoxServiceDockerLoginProcedure is the fully-qualified name of the BoxService's DockerLogin RPC.
 	BoxServiceDockerLoginProcedure = "/box.v1.BoxService/DockerLogin"
+	// BoxServicePruneProcedure is the fully-qualified name of the BoxService's Prune RPC.
+	BoxServicePruneProcedure = "/box.v1.BoxService/Prune"
 )
 
 // BoxServiceClient is a client for the box.v1.BoxService service.
@@ -123,6 +125,7 @@ type BoxServiceClient interface {
 	DockerInfo(context.Context, *v1.DockerInfoRequest) (*v1.DockerInfoResponse, error)
 	// DockerLogin saves registry credentials through the server Docker CLI for site image pulls.
 	DockerLogin(context.Context, *v1.DockerLoginRequest) (*v1.DockerLoginResponse, error)
+	Prune(context.Context, *v1.PruneRequest) (*v1.PruneResponse, error)
 }
 
 // NewBoxServiceClient constructs a client for the box.v1.BoxService service. By default, it uses
@@ -250,6 +253,12 @@ func NewBoxServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 			connect.WithSchema(boxServiceMethods.ByName("DockerLogin")),
 			connect.WithClientOptions(opts...),
 		),
+		prune: connect.NewClient[v1.PruneRequest, v1.PruneResponse](
+			httpClient,
+			baseURL+BoxServicePruneProcedure,
+			connect.WithSchema(boxServiceMethods.ByName("Prune")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -274,6 +283,7 @@ type boxServiceClient struct {
 	rotateKey    *connect.Client[v1.RotateKeyRequest, v1.RotateKeyResponse]
 	dockerInfo   *connect.Client[v1.DockerInfoRequest, v1.DockerInfoResponse]
 	dockerLogin  *connect.Client[v1.DockerLoginRequest, v1.DockerLoginResponse]
+	prune        *connect.Client[v1.PruneRequest, v1.PruneResponse]
 }
 
 // Version calls box.v1.BoxService.Version.
@@ -443,6 +453,15 @@ func (c *boxServiceClient) DockerLogin(ctx context.Context, req *v1.DockerLoginR
 	return nil, err
 }
 
+// Prune calls box.v1.BoxService.Prune.
+func (c *boxServiceClient) Prune(ctx context.Context, req *v1.PruneRequest) (*v1.PruneResponse, error) {
+	response, err := c.prune.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
 // BoxServiceHandler is an implementation of the box.v1.BoxService service.
 type BoxServiceHandler interface {
 	// Version returns the server build identifier.
@@ -493,6 +512,7 @@ type BoxServiceHandler interface {
 	DockerInfo(context.Context, *v1.DockerInfoRequest) (*v1.DockerInfoResponse, error)
 	// DockerLogin saves registry credentials through the server Docker CLI for site image pulls.
 	DockerLogin(context.Context, *v1.DockerLoginRequest) (*v1.DockerLoginResponse, error)
+	Prune(context.Context, *v1.PruneRequest) (*v1.PruneResponse, error)
 }
 
 // NewBoxServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -616,6 +636,12 @@ func NewBoxServiceHandler(svc BoxServiceHandler, opts ...connect.HandlerOption) 
 		connect.WithSchema(boxServiceMethods.ByName("DockerLogin")),
 		connect.WithHandlerOptions(opts...),
 	)
+	boxServicePruneHandler := connect.NewUnaryHandlerSimple(
+		BoxServicePruneProcedure,
+		svc.Prune,
+		connect.WithSchema(boxServiceMethods.ByName("Prune")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/box.v1.BoxService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case BoxServiceVersionProcedure:
@@ -656,6 +682,8 @@ func NewBoxServiceHandler(svc BoxServiceHandler, opts ...connect.HandlerOption) 
 			boxServiceDockerInfoHandler.ServeHTTP(w, r)
 		case BoxServiceDockerLoginProcedure:
 			boxServiceDockerLoginHandler.ServeHTTP(w, r)
+		case BoxServicePruneProcedure:
+			boxServicePruneHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -739,4 +767,8 @@ func (UnimplementedBoxServiceHandler) DockerInfo(context.Context, *v1.DockerInfo
 
 func (UnimplementedBoxServiceHandler) DockerLogin(context.Context, *v1.DockerLoginRequest) (*v1.DockerLoginResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("box.v1.BoxService.DockerLogin is not implemented"))
+}
+
+func (UnimplementedBoxServiceHandler) Prune(context.Context, *v1.PruneRequest) (*v1.PruneResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("box.v1.BoxService.Prune is not implemented"))
 }

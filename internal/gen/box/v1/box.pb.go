@@ -2379,6 +2379,86 @@ func (*DockerLoginResponse) Descriptor() ([]byte, []int) {
 	return file_box_v1_box_proto_rawDescGZIP(), []int{43}
 }
 
+type PruneRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PruneRequest) Reset() {
+	*x = PruneRequest{}
+	mi := &file_box_v1_box_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PruneRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PruneRequest) ProtoMessage() {}
+
+func (x *PruneRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_box_v1_box_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PruneRequest.ProtoReflect.Descriptor instead.
+func (*PruneRequest) Descriptor() ([]byte, []int) {
+	return file_box_v1_box_proto_rawDescGZIP(), []int{44}
+}
+
+type PruneResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Reclaimed     string                 `protobuf:"bytes,1,opt,name=reclaimed,proto3" json:"reclaimed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PruneResponse) Reset() {
+	*x = PruneResponse{}
+	mi := &file_box_v1_box_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PruneResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PruneResponse) ProtoMessage() {}
+
+func (x *PruneResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_box_v1_box_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PruneResponse.ProtoReflect.Descriptor instead.
+func (*PruneResponse) Descriptor() ([]byte, []int) {
+	return file_box_v1_box_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *PruneResponse) GetReclaimed() string {
+	if x != nil {
+		return x.Reclaimed
+	}
+	return ""
+}
+
 var File_box_v1_box_proto protoreflect.FileDescriptor
 
 const file_box_v1_box_proto_rawDesc = "" +
@@ -2523,7 +2603,11 @@ const file_box_v1_box_proto_rawDesc = "" +
 	"\bregistry\x18\x01 \x01(\tR\bregistry\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12\x1a\n" +
 	"\bpassword\x18\x03 \x01(\tR\bpassword\"\x15\n" +
-	"\x13DockerLoginResponse2\xd0\t\n" +
+	"\x13DockerLoginResponse\"\x0e\n" +
+	"\fPruneRequest\"-\n" +
+	"\rPruneResponse\x12\x1c\n" +
+	"\treclaimed\x18\x01 \x01(\tR\treclaimed2\x86\n" +
+	"\n" +
 	"\n" +
 	"BoxService\x12:\n" +
 	"\aVersion\x12\x16.box.v1.VersionRequest\x1a\x17.box.v1.VersionResponse\x127\n" +
@@ -2549,7 +2633,8 @@ const file_box_v1_box_proto_rawDesc = "" +
 	"\tRotateKey\x12\x18.box.v1.RotateKeyRequest\x1a\x19.box.v1.RotateKeyResponse\x12C\n" +
 	"\n" +
 	"DockerInfo\x12\x19.box.v1.DockerInfoRequest\x1a\x1a.box.v1.DockerInfoResponse\x12F\n" +
-	"\vDockerLogin\x12\x1a.box.v1.DockerLoginRequest\x1a\x1b.box.v1.DockerLoginResponseB2Z0github.com/alfredr/box/internal/gen/box/v1;boxv1b\x06proto3"
+	"\vDockerLogin\x12\x1a.box.v1.DockerLoginRequest\x1a\x1b.box.v1.DockerLoginResponse\x124\n" +
+	"\x05Prune\x12\x14.box.v1.PruneRequest\x1a\x15.box.v1.PruneResponseB2Z0github.com/alfredr/box/internal/gen/box/v1;boxv1b\x06proto3"
 
 var (
 	file_box_v1_box_proto_rawDescOnce sync.Once
@@ -2563,7 +2648,7 @@ func file_box_v1_box_proto_rawDescGZIP() []byte {
 	return file_box_v1_box_proto_rawDescData
 }
 
-var file_box_v1_box_proto_msgTypes = make([]protoimpl.MessageInfo, 45)
+var file_box_v1_box_proto_msgTypes = make([]protoimpl.MessageInfo, 47)
 var file_box_v1_box_proto_goTypes = []any{
 	(*Change)(nil),                // 0: box.v1.Change
 	(*Service)(nil),               // 1: box.v1.Service
@@ -2609,17 +2694,19 @@ var file_box_v1_box_proto_goTypes = []any{
 	(*DockerInfoResponse)(nil),    // 41: box.v1.DockerInfoResponse
 	(*DockerLoginRequest)(nil),    // 42: box.v1.DockerLoginRequest
 	(*DockerLoginResponse)(nil),   // 43: box.v1.DockerLoginResponse
-	nil,                           // 44: box.v1.StatusResponse.ErrorsEntry
-	(*timestamppb.Timestamp)(nil), // 45: google.protobuf.Timestamp
+	(*PruneRequest)(nil),          // 44: box.v1.PruneRequest
+	(*PruneResponse)(nil),         // 45: box.v1.PruneResponse
+	nil,                           // 46: box.v1.StatusResponse.ErrorsEntry
+	(*timestamppb.Timestamp)(nil), // 47: google.protobuf.Timestamp
 }
 var file_box_v1_box_proto_depIdxs = []int32{
 	1,  // 0: box.v1.Site.services:type_name -> box.v1.Service
-	45, // 1: box.v1.Site.deployed_at:type_name -> google.protobuf.Timestamp
-	45, // 2: box.v1.Site.checked_at:type_name -> google.protobuf.Timestamp
-	45, // 3: box.v1.StatusResponse.last_check:type_name -> google.protobuf.Timestamp
-	45, // 4: box.v1.StatusResponse.next_check:type_name -> google.protobuf.Timestamp
+	47, // 1: box.v1.Site.deployed_at:type_name -> google.protobuf.Timestamp
+	47, // 2: box.v1.Site.checked_at:type_name -> google.protobuf.Timestamp
+	47, // 3: box.v1.StatusResponse.last_check:type_name -> google.protobuf.Timestamp
+	47, // 4: box.v1.StatusResponse.next_check:type_name -> google.protobuf.Timestamp
 	2,  // 5: box.v1.StatusResponse.sites:type_name -> box.v1.Site
-	44, // 6: box.v1.StatusResponse.errors:type_name -> box.v1.StatusResponse.ErrorsEntry
+	46, // 6: box.v1.StatusResponse.errors:type_name -> box.v1.StatusResponse.ErrorsEntry
 	2,  // 7: box.v1.GetSiteResponse.site:type_name -> box.v1.Site
 	0,  // 8: box.v1.CreateSiteResponse.changes:type_name -> box.v1.Change
 	3,  // 9: box.v1.CreateSiteResponse.hook:type_name -> box.v1.Hook
@@ -2651,27 +2738,29 @@ var file_box_v1_box_proto_depIdxs = []int32{
 	38, // 35: box.v1.BoxService.RotateKey:input_type -> box.v1.RotateKeyRequest
 	40, // 36: box.v1.BoxService.DockerInfo:input_type -> box.v1.DockerInfoRequest
 	42, // 37: box.v1.BoxService.DockerLogin:input_type -> box.v1.DockerLoginRequest
-	5,  // 38: box.v1.BoxService.Version:output_type -> box.v1.VersionResponse
-	7,  // 39: box.v1.BoxService.Status:output_type -> box.v1.StatusResponse
-	9,  // 40: box.v1.BoxService.GetSite:output_type -> box.v1.GetSiteResponse
-	11, // 41: box.v1.BoxService.CreateSite:output_type -> box.v1.CreateSiteResponse
-	13, // 42: box.v1.BoxService.RemoveSite:output_type -> box.v1.RemoveSiteResponse
-	15, // 43: box.v1.BoxService.Deploy:output_type -> box.v1.DeployResponse
-	18, // 44: box.v1.BoxService.Check:output_type -> box.v1.CheckResponse
-	20, // 45: box.v1.BoxService.Rollback:output_type -> box.v1.RollbackResponse
-	22, // 46: box.v1.BoxService.Logs:output_type -> box.v1.LogsResponse
-	24, // 47: box.v1.BoxService.GetCompose:output_type -> box.v1.GetComposeResponse
-	26, // 48: box.v1.BoxService.ApplyCompose:output_type -> box.v1.ApplyComposeResponse
-	29, // 49: box.v1.BoxService.GetConfig:output_type -> box.v1.GetConfigResponse
-	31, // 50: box.v1.BoxService.SetConfig:output_type -> box.v1.SetConfigResponse
-	33, // 51: box.v1.BoxService.GetHook:output_type -> box.v1.GetHookResponse
-	35, // 52: box.v1.BoxService.RotateHook:output_type -> box.v1.RotateHookResponse
-	37, // 53: box.v1.BoxService.ListHooks:output_type -> box.v1.ListHooksResponse
-	39, // 54: box.v1.BoxService.RotateKey:output_type -> box.v1.RotateKeyResponse
-	41, // 55: box.v1.BoxService.DockerInfo:output_type -> box.v1.DockerInfoResponse
-	43, // 56: box.v1.BoxService.DockerLogin:output_type -> box.v1.DockerLoginResponse
-	38, // [38:57] is the sub-list for method output_type
-	19, // [19:38] is the sub-list for method input_type
+	44, // 38: box.v1.BoxService.Prune:input_type -> box.v1.PruneRequest
+	5,  // 39: box.v1.BoxService.Version:output_type -> box.v1.VersionResponse
+	7,  // 40: box.v1.BoxService.Status:output_type -> box.v1.StatusResponse
+	9,  // 41: box.v1.BoxService.GetSite:output_type -> box.v1.GetSiteResponse
+	11, // 42: box.v1.BoxService.CreateSite:output_type -> box.v1.CreateSiteResponse
+	13, // 43: box.v1.BoxService.RemoveSite:output_type -> box.v1.RemoveSiteResponse
+	15, // 44: box.v1.BoxService.Deploy:output_type -> box.v1.DeployResponse
+	18, // 45: box.v1.BoxService.Check:output_type -> box.v1.CheckResponse
+	20, // 46: box.v1.BoxService.Rollback:output_type -> box.v1.RollbackResponse
+	22, // 47: box.v1.BoxService.Logs:output_type -> box.v1.LogsResponse
+	24, // 48: box.v1.BoxService.GetCompose:output_type -> box.v1.GetComposeResponse
+	26, // 49: box.v1.BoxService.ApplyCompose:output_type -> box.v1.ApplyComposeResponse
+	29, // 50: box.v1.BoxService.GetConfig:output_type -> box.v1.GetConfigResponse
+	31, // 51: box.v1.BoxService.SetConfig:output_type -> box.v1.SetConfigResponse
+	33, // 52: box.v1.BoxService.GetHook:output_type -> box.v1.GetHookResponse
+	35, // 53: box.v1.BoxService.RotateHook:output_type -> box.v1.RotateHookResponse
+	37, // 54: box.v1.BoxService.ListHooks:output_type -> box.v1.ListHooksResponse
+	39, // 55: box.v1.BoxService.RotateKey:output_type -> box.v1.RotateKeyResponse
+	41, // 56: box.v1.BoxService.DockerInfo:output_type -> box.v1.DockerInfoResponse
+	43, // 57: box.v1.BoxService.DockerLogin:output_type -> box.v1.DockerLoginResponse
+	45, // 58: box.v1.BoxService.Prune:output_type -> box.v1.PruneResponse
+	39, // [39:59] is the sub-list for method output_type
+	19, // [19:39] is the sub-list for method input_type
 	19, // [19:19] is the sub-list for extension type_name
 	19, // [19:19] is the sub-list for extension extendee
 	0,  // [0:19] is the sub-list for field type_name
@@ -2688,7 +2777,7 @@ func file_box_v1_box_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_box_v1_box_proto_rawDesc), len(file_box_v1_box_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   45,
+			NumMessages:   47,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -90,12 +90,15 @@ func Prepare(ctx context.Context, cfg Config, listen string, proxy bool) error {
 		return err
 	}
 
-	if !proxy {
-		return nil
+	if proxy {
+		if err := ProxyUp(ctx); err != nil {
+			return fmt.Errorf("starting the proxy: %w", err)
+		}
 	}
 
-	if err := ProxyUp(ctx); err != nil {
-		return fmt.Errorf("starting the proxy: %w", err)
+	if pruneEnabled() {
+		dropStaleProxies(ctx)
+		tidy(ctx)
 	}
 
 	return nil

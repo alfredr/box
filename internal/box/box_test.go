@@ -352,3 +352,16 @@ func TestAPIKey(t *testing.T) {
 		t.Errorf("key file mode = %v, %v", info.Mode(), err)
 	}
 }
+
+func TestReclaimedFrom(t *testing.T) {
+	cases := map[string]string{
+		"Deleted Images:\ndeleted: sha256:abc\n\nTotal reclaimed space: 19.22MB\n": "19.22MB",
+		"Total reclaimed space: 0B\n": "0B",
+		"":                            "0B",
+	}
+	for out, want := range cases {
+		if got := reclaimedFrom(out); got != want {
+			t.Errorf("reclaimedFrom(%q) = %q, want %q", out, got, want)
+		}
+	}
+}

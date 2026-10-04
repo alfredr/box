@@ -187,7 +187,7 @@ func TestServer(t *testing.T) {
 		Root:    root,
 		Listen:  "0.0.0.0:9311",
 		Publish: true,
-		Env:     []string{"BOX_PROXY=off"},
+		Env:     []string{"BOX_PROXY=off", "BOX_PRUNE=off"},
 	}
 	install := client.InstallOptions{Server: server, Domain: "box.e2e.example.com", Log: func(s string) { t.Log(s) }}
 	key, err := client.Install(ctx, eng, install)
@@ -290,6 +290,10 @@ func TestServer(t *testing.T) {
 		t.Fatalf("failing deploy: %v, running %s, want v3 %s", err, running(), v3)
 	}
 
+	if out := docker(t, "image", "inspect", "--format", "{{.Id}}", "box-keep/"+site+":app-rejected"); out == v3 || out == "" {
+		t.Fatalf("rejected image tag = %q", out)
+	}
+
 	logs, err := c.Logs(ctx, &boxv1.LogsRequest{Site: site, Tail: 5})
 	must(err)
 	for logs.Receive() {
@@ -349,6 +353,10 @@ func TestServer(t *testing.T) {
 	must(err)
 	if _, err := c.GetSite(ctx, &boxv1.GetSiteRequest{Site: site}); connect.CodeOf(err) != connect.CodeNotFound {
 		t.Fatalf("after remove: %v", err)
+	}
+
+	if out := docker(t, "images", "--filter", "reference=box-keep/"+site+":*", "--format", "{{.Repository}}:{{.Tag}}"); out != "" {
+		t.Fatalf("images left after remove: %s", out)
 	}
 
 	next := box.NewSecret()

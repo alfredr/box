@@ -646,6 +646,15 @@ func (s *Server) DockerInfo(ctx context.Context, _ *boxv1.DockerInfoRequest) (*b
 
 // DockerLogin saves registry credentials through the server Docker CLI for later site image
 // pulls.
+func (s *Server) Prune(ctx context.Context, _ *boxv1.PruneRequest) (*boxv1.PruneResponse, error) {
+	reclaimed, err := box.Prune(work(ctx))
+	if err != nil {
+		return nil, err
+	}
+
+	return &boxv1.PruneResponse{Reclaimed: reclaimed}, nil
+}
+
 func (s *Server) DockerLogin(ctx context.Context, req *boxv1.DockerLoginRequest) (*boxv1.DockerLoginResponse, error) {
 	return &boxv1.DockerLoginResponse{}, box.DockerLogin(ctx, req.Registry, req.Username, req.Password)
 }
