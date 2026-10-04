@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/term"
+
 	"github.com/alfredr/box/internal/box"
 	"github.com/alfredr/box/internal/engine"
 )
@@ -24,10 +26,16 @@ type Host struct {
 
 const remoteSocket = "/var/run/docker.sock"
 
-// Run executes command in the remote login shell with a pseudo-terminal and local stdin,
-// stdout, and stderr attached. The command is passed without additional shell quoting.
+// Run executes command in the remote login shell with local stdin, stdout, and stderr attached,
+// and with a pseudo-terminal when stdin is a terminal, so sudo can prompt for a password. The
+// command is passed without additional shell quoting.
 func (h Host) Run(ctx context.Context, command string) error {
-	cmd := exec.CommandContext(ctx, "ssh", "-t", h.Target, command)
+	args := []string{h.Target, command}
+	if term.IsTerminal(int(os.Stdin.Fd())) {
+		args = append([]string{"-t"}, args...)
+	}
+
+	cmd := exec.CommandContext(ctx, "ssh", args...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("%s on %s: %w", command, h.Target, err)

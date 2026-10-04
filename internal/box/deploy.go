@@ -373,7 +373,8 @@ type CheckResult struct {
 	Err     error
 }
 
-// Check pulls images for all non-pinned services and applies their update policies. It skips
+// Check pulls images for all non-pinned services and applies their update policies. A site that
+// has never been deployed starts once its auto services have images. Otherwise it skips
 // deployment for services without containers and for rejected images. New manual updates are
 // recorded and announced once. The site lock is held for the entire check.
 func Check(ctx context.Context, cfg Config, name string) CheckResult {
@@ -430,6 +431,24 @@ func Check(ctx context.Context, cfg Config, name string) CheckResult {
 	}
 
 	rec.CheckError = ""
+
+	// A site that has never been deployed starts once its auto services have images, so CI can bring up a new site
+	// with its first push. A site that was deployed and later stopped is left alone.
+	if rec.DeployedAt.IsZero() && len(before) == 0 {
+		if err := rec.save(name); err != nil {
+			r.Err = err
+			return r
+		}
+
+		for _, s := range pulls {
+			if s.Policy == Auto && imageID(ctx, s.Image) != "" {
+				r.Deployed, r.Err = deploy(ctx, cfg, site, site.Services, false, false)
+				return r
+			}
+		}
+
+		return r
+	}
 
 	var auto []Service
 	for _, s := range pulls {

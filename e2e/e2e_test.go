@@ -230,11 +230,15 @@ func TestServer(t *testing.T) {
 
 	v1 := pushImage(t, ref, "site", "v1")
 	created, err := c.CreateSite(ctx, &boxv1.CreateSiteRequest{
-		Name: site, Image: ref, Domains: []string{"e2e.example.com"}, Port: 80, Policy: "auto", Deploy: true,
+		Name: site, Image: ref, Domains: []string{"e2e.example.com"}, Port: 80, Policy: "auto",
 	})
 	must(err)
-	if len(created.Changes) != 1 || created.Hook == nil || running() != v1 {
-		t.Fatalf("created = %v, running %s, want %s", created, running(), v1)
+	if created.Hook == nil || running() != "" {
+		t.Fatalf("created = %v, running %q, want nothing yet", created, running())
+	}
+
+	if r := check(); len(r.Deployed) != 1 || running() != v1 {
+		t.Fatalf("first check = %v, running %s, want %s", r, running(), v1)
 	}
 
 	v2 := pushImage(t, ref, "site", "v2")
