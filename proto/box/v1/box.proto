@@ -77,12 +77,19 @@ message Service {
   string state = 4;
   // Running is the image ID used to create the inspected container, even if it is stopped.
   string running = 5;
-  // Previous is the retained image ID from the last image change for this service.
-  string previous = 6;
   // Pending is an image ID recorded for manual deployment.
   string pending = 7;
   // Rejected is an image ID skipped by checks after a failed deployment or rollback.
   string rejected = 8;
+  repeated KeptImage history = 9;
+  int32 keep = 10;
+  int64 budget = 11;
+  int64 kept_bytes = 12;
+}
+
+message KeptImage {
+  string id = 1;
+  google.protobuf.Timestamp deployed_at = 2;
 }
 // Site contains the current site definition, service states, and saved operation results. Unset
 // timestamps indicate that no corresponding operation was recorded.
@@ -131,6 +138,10 @@ message StatusResponse {
   repeated Site sites = 8;
   // Errors maps site names to failures encountered while reading their status.
   map<string, string> errors = 9;
+  int64 kept_bytes = 10;
+  int64 worst_bytes = 11;
+  int64 free_bytes = 12;
+  repeated string warnings = 13;
 }
 
 // GetSiteRequest selects a site by its stored name.
@@ -165,6 +176,7 @@ message CreateSiteResponse {
   repeated Change changes = 1;
   // Hook is absent if the server has no configured domain.
   Hook hook = 2;
+  repeated string warnings = 3;
 }
 
 // RemoveSiteRequest selects a site and whether to delete its files and volumes.
@@ -217,6 +229,7 @@ message CheckResponse {
 // RollbackRequest selects a site whose previous images should be restored.
 message RollbackRequest {
   string site = 1;
+  string to = 2;
 }
 
 // RollbackResponse lists the service image changes made by a successful rollback.
@@ -259,7 +272,9 @@ message ApplyComposeRequest {
 }
 
 // ApplyComposeResponse confirms that the edited site was applied successfully.
-message ApplyComposeResponse {}
+message ApplyComposeResponse {
+  repeated string warnings = 1;
+}
 
 // GetConfigRequest requests all supported server settings.
 message GetConfigRequest {}
@@ -284,7 +299,9 @@ message SetConfigRequest {
 
 // SetConfigResponse confirms that the setting and any required proxy or polling updates
 // succeeded.
-message SetConfigResponse {}
+message SetConfigResponse {
+  repeated string warnings = 1;
+}
 
 // GetHookRequest selects a site whose webhook URL and secret should be returned.
 message GetHookRequest {

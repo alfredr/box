@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 )
 
@@ -41,11 +42,13 @@ type Config struct {
 	// delivery.
 	Notify string `json:"notify,omitempty"`
 	// Poll is a Go duration string or "off". An empty value uses DefaultPoll.
-	Poll string `json:"poll,omitempty"`
+	Poll   string `json:"poll,omitempty"`
+	Keep   string `json:"keep,omitempty"`
+	Budget string `json:"budget,omitempty"`
 }
 
 // ConfigKeys lists supported setting names in CLI display order.
-var ConfigKeys = []string{"domain", "email", "notify", "poll"}
+var ConfigKeys = []string{"domain", "email", "notify", "poll", "keep", "budget"}
 
 // DefaultPoll is the interval used when no polling schedule is configured.
 const DefaultPoll = "5m"
@@ -119,6 +122,18 @@ func (c Config) Get(key string) (string, error) {
 		}
 
 		return c.Poll, nil
+	case "keep":
+		if c.Keep == "" {
+			return strconv.Itoa(DefaultKeep), nil
+		}
+
+		return c.Keep, nil
+	case "budget":
+		if c.Budget == "" {
+			return "off", nil
+		}
+
+		return c.Budget, nil
 	}
 
 	return "", Invalid(fmt.Errorf("unknown setting %q (one of %v)", key, ConfigKeys))
@@ -161,6 +176,18 @@ func (c *Config) Set(key, value string) error {
 		}
 
 		c.Poll = value
+	case "keep":
+		if _, err := parseKeep(value); err != nil {
+			return Invalid(err)
+		}
+
+		c.Keep = value
+	case "budget":
+		if _, err := parseBudget(value); err != nil {
+			return Invalid(fmt.Errorf("budget: %w", err))
+		}
+
+		c.Budget = value
 	default:
 		return Invalid(fmt.Errorf("unknown setting %q (one of %v)", key, ConfigKeys))
 	}

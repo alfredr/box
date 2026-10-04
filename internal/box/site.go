@@ -42,6 +42,8 @@ type Service struct {
 	Name   string
 	Image  string
 	Policy Policy
+	Keep   int
+	Budget int64
 }
 
 // Site contains the Compose metadata used to manage one site. Its file is stored at
@@ -109,6 +111,8 @@ func ComposePath(name string) string { return filepath.Join(siteDir(name), "comp
 type composeFile struct {
 	Box struct {
 		Update map[string]string `yaml:"update"`
+		Keep   map[string]string `yaml:"keep"`
+		Budget map[string]string `yaml:"budget"`
 	} `yaml:"x-box"`
 	Services map[string]struct {
 		Image  string    `yaml:"image"`
@@ -139,9 +143,11 @@ func parseSite(name string, data []byte) (Site, error) {
 		return site, fmt.Errorf("%s: no services", name)
 	}
 
-	for svc := range f.Box.Update {
-		if _, ok := f.Services[svc]; !ok {
-			return site, fmt.Errorf("%s: x-box update names %q, which isn't a service", name, svc)
+	for block, m := range map[string]map[string]string{"update": f.Box.Update, "keep": f.Box.Keep, "budget": f.Box.Budget} {
+		for svc := range m {
+			if _, ok := f.Services[svc]; !ok {
+				return site, fmt.Errorf("%s: x-box %s names %q, which isn't a service", name, block, svc)
+			}
 		}
 	}
 
@@ -163,7 +169,21 @@ func parseSite(name string, data []byte) (Site, error) {
 			}
 		}
 
-		site.Services = append(site.Services, Service{Name: svc, Image: def.Image, Policy: policy})
+		service := Service{Name: svc, Image: def.Image, Policy: policy, Keep: -1, Budget: -1}
+		var err error
+		if v, ok := f.Box.Keep[svc]; ok {
+			if service.Keep, err = parseKeep(v); err != nil {
+				return site, fmt.Errorf("%s: service %s: %w", name, svc, err)
+			}
+		}
+
+		if v, ok := f.Box.Budget[svc]; ok {
+			if service.Budget, err = parseBudget(v); err != nil {
+				return site, fmt.Errorf("%s: service %s: budget: %w", name, svc, err)
+			}
+		}
+
+		site.Services = append(site.Services, service)
 
 		for _, kv := range labels(&def.Labels) {
 			if !caddyKey.MatchString(kv[0]) {

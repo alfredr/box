@@ -24,9 +24,11 @@ type Record struct {
 	CheckError string `json:"check_error,omitempty"`
 	// Images maps services to the image IDs recorded after successful operations.
 	Images map[string]string `json:"images,omitempty"`
-	// Previous holds the prior image for each service that changed. Unchanged services retain
-	// their existing history.
-	Previous map[string]string `json:"previous,omitempty"`
+	// History holds each service's earlier images, newest first, within its keep and budget
+	// limits.
+	History map[string][]Kept `json:"history,omitempty"`
+	// Since records when each service's current image was deployed.
+	Since map[string]time.Time `json:"since,omitempty"`
 	// Pending holds image IDs pulled for manual services and awaiting deployment.
 	Pending map[string]string `json:"pending,omitempty"`
 	// Rejected holds image IDs excluded from checks after a failed deployment or rollback.

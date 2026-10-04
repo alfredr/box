@@ -239,16 +239,23 @@ func siteOf(st box.SiteStatus) *boxv1.Site {
 		CheckError: st.Record.CheckError,
 	}
 	for _, s := range st.Services {
-		out.Services = append(out.Services, &boxv1.Service{
-			Name:     s.Name,
-			Image:    s.Image,
-			Policy:   string(s.Policy),
-			State:    s.State,
-			Running:  s.Running,
-			Previous: s.Previous,
-			Pending:  s.Pending,
-			Rejected: st.Record.Rejected[s.Name],
-		})
+		svc := &boxv1.Service{
+			Name:      s.Name,
+			Image:     s.Image,
+			Policy:    string(s.Policy),
+			State:     s.State,
+			Running:   s.Running,
+			Pending:   s.Pending,
+			Rejected:  st.Record.Rejected[s.Name],
+			Keep:      int32(s.Limits.Keep),
+			Budget:    s.Limits.Budget,
+			KeptBytes: s.KeptBytes,
+		}
+		for _, k := range s.History {
+			svc.History = append(svc.History, &boxv1.KeptImage{Id: k.ID, DeployedAt: stamp(k.DeployedAt)})
+		}
+
+		out.Services = append(out.Services, svc)
 	}
 
 	return out
@@ -307,6 +314,14 @@ func (s *Server) Status(ctx context.Context, _ *boxv1.StatusRequest) (*boxv1.Sta
 		out.Sites = append(out.Sites, siteOf(st))
 	}
 
+	capacity, err := box.Measure(ctx, cfg)
+	if err != nil {
+		out.Warnings = append(out.Warnings, "couldn't check space for kept images: "+err.Error())
+		return out, nil
+	}
+
+	out.KeptBytes, out.WorstBytes, out.FreeBytes = capacity.Kept, capacity.Worst, capacity.Free
+	out.Warnings = append(out.Warnings, capacity.Warnings...)
 	return out, nil
 }
 
@@ -364,6 +379,7 @@ func (s *Server) CreateSite(ctx context.Context, req *boxv1.CreateSiteRequest) (
 		out.Changes = changes(cs)
 	}
 
+	out.Warnings = box.Warnings(ctx, cfg)
 	return out, nil
 }
 
@@ -433,7 +449,7 @@ func (s *Server) Rollback(ctx context.Context, req *boxv1.RollbackRequest) (*box
 		return nil, err
 	}
 
-	cs, err := box.Rollback(work(ctx), cfg, req.Site)
+	cs, err := box.Rollback(work(ctx), cfg, req.Site, req.To)
 	if err != nil {
 		return nil, err
 	}
@@ -486,7 +502,11 @@ func (s *Server) ApplyCompose(ctx context.Context, req *boxv1.ApplyComposeReques
 		return nil, err
 	}
 
-	return &boxv1.ApplyComposeResponse{}, box.Apply(work(ctx), cfg, req.Site, []byte(req.Text))
+	if err := box.Apply(work(ctx), cfg, req.Site, []byte(req.Text)); err != nil {
+		return nil, err
+	}
+
+	return &boxv1.ApplyComposeResponse{Warnings: box.Warnings(ctx, cfg)}, nil
 }
 
 // GetConfig returns supported settings in CLI display order, including the effective default
@@ -536,6 +556,8 @@ func (s *Server) SetConfig(ctx context.Context, req *boxv1.SetConfigRequest) (*b
 		}
 	case "poll":
 		s.poll.nudge()
+	case "keep", "budget":
+		return &boxv1.SetConfigResponse{Warnings: box.Warnings(ctx, cfg)}, nil
 	}
 
 	return &boxv1.SetConfigResponse{}, nil
@@ -647,6 +669,15 @@ func (s *Server) DockerInfo(ctx context.Context, _ *boxv1.DockerInfoRequest) (*b
 // DockerLogin saves registry credentials through the server Docker CLI for later site image
 // pulls.
 func (s *Server) Prune(ctx context.Context, _ *boxv1.PruneRequest) (*boxv1.PruneResponse, error) {
+	cfg, err := box.LoadConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := box.TrimAll(work(ctx), cfg); err != nil {
+		return nil, err
+	}
+
 	reclaimed, err := box.Prune(work(ctx))
 	if err != nil {
 		return nil, err

@@ -51,7 +51,7 @@ Sites
   box status [site]                       what's running, what's waiting
   box deploy <site> [service...]          pull and start, rolling back if it fails
   box check [site]                        look for new images now (every site by default)
-  box rollback <site>                     go back to the images before the last deploy
+  box rollback <site> [--to N|ID]         go back to a kept image (the most recent by default)
   box logs <site> [service] [-f] [-n N]   container logs
   box edit <site>                         edit the compose file here, apply it there
   box remove <site> [--purge]             stop a site and set its files aside
@@ -546,9 +546,12 @@ func cmdNew(ctx context.Context, c *conn, args []string) error {
 	}
 
 	fmt.Printf("created %s\n", name)
-	if *deploy {
+	switch {
+	case *deploy:
 		printChanges(name, out.Changes)
-	} else {
+	case policy == box.Auto:
+		fmt.Printf("It starts when its first image is found (a webhook, the next poll, or box check %s), or now with box deploy %s.\n", name, name)
+	default:
 		fmt.Printf("Start it with: box deploy %s\n", name)
 	}
 
@@ -558,7 +561,14 @@ func cmdNew(ctx context.Context, c *conn, args []string) error {
 		printHook(out.Hook)
 	}
 
+	printWarnings(out.Warnings)
 	return nil
+}
+
+func printWarnings(warnings []string) {
+	for _, w := range warnings {
+		fmt.Fprintln(os.Stderr, "warning:", w)
+	}
 }
 
 func printChanges(name string, changes []*boxv1.Change) {
@@ -612,7 +622,10 @@ func hostStatus(ctx context.Context, c *conn) error {
 	fmt.Printf("server   %s, %s (%s)\n", c.name, c.profile.URL, st.Version)
 	fmt.Printf("proxy    %s\n", st.Proxy)
 	fmt.Printf("polling  %s\n", poll)
-	fmt.Printf("notify   %s\n\n", notify)
+	fmt.Printf("notify   %s\n", notify)
+	fmt.Printf("images   %s kept, up to %s with the current limits, %s free\n\n",
+		box.FormatSize(st.KeptBytes), box.FormatSize(st.WorstBytes), box.FormatSize(st.FreeBytes))
+	printWarnings(st.Warnings)
 
 	if len(st.Sites)+len(st.Errors) == 0 {
 		fmt.Println("No sites yet: box new <site> --image IMG --domain D")
@@ -656,13 +669,37 @@ func siteStatus(ctx context.Context, c *conn, name string) error {
 
 	fmt.Print("\n\n")
 	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "SERVICE\tIMAGE REF\tUPDATE\tSTATE\tRUNNING\tPREVIOUS\tNOTE")
+	fmt.Fprintln(tw, "SERVICE\tIMAGE REF\tUPDATE\tSTATE\tRUNNING\tKEPT\tNOTE")
 	for _, s := range st.Services {
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", s.Name, s.Image, s.Policy, s.State, short(s.Running),
-			short(s.Previous), note(s))
+			kept(s), note(s))
 	}
 
-	return tw.Flush()
+	if err := tw.Flush(); err != nil {
+		return err
+	}
+
+	for _, s := range st.Services {
+		if len(s.History) == 0 {
+			continue
+		}
+
+		fmt.Printf("\n%s history (box rollback %s --to N or ID):\n", s.Name, name)
+		for i, k := range s.History {
+			fmt.Printf("  %-3d %s  deployed %s\n", i+1, box.ShortID(k.Id), when(k.DeployedAt))
+		}
+	}
+
+	return nil
+}
+
+func kept(s *boxv1.Service) string {
+	limit := "no budget"
+	if s.Budget > 0 {
+		limit = "budget " + box.FormatSize(s.Budget)
+	}
+
+	return fmt.Sprintf("%d of %d, %s (%s)", len(s.History), s.Keep, box.FormatSize(s.KeptBytes), limit)
 }
 
 func short(id string) string {
@@ -751,12 +788,14 @@ func cmdCheck(ctx context.Context, c *conn, args []string) error {
 }
 
 func cmdRollback(ctx context.Context, c *conn, args []string) error {
-	name, err := one(flags("rollback", "rollback <site>"), args)
+	fs := flags("rollback", "rollback <site> [--to N|ID]")
+	to := fs.String("to", "", "the kept image to go back to: its number in box status <site>, or an image ID prefix (default 1, the most recent)")
+	name, err := one(fs, args)
 	if err != nil {
 		return err
 	}
 
-	out, err := c.api.Rollback(ctx, &boxv1.RollbackRequest{Site: name})
+	out, err := c.api.Rollback(ctx, &boxv1.RollbackRequest{Site: name, To: *to})
 	if err != nil {
 		return err
 	}
@@ -838,12 +877,14 @@ func cmdEdit(ctx context.Context, c *conn, args []string) error {
 		// Check the fields box reads locally. The server also runs full Compose validation
 		// before applying the file.
 		_, err = box.ParseSite(name, edited)
+		var applied *boxv1.ApplyComposeResponse
 		if err == nil {
-			_, err = c.api.ApplyCompose(ctx, &boxv1.ApplyComposeRequest{Site: name, Text: string(edited)})
+			applied, err = c.api.ApplyCompose(ctx, &boxv1.ApplyComposeRequest{Site: name, Text: string(edited)})
 		}
 
 		if err == nil {
 			fmt.Printf("%s: applied\n", name)
+			printWarnings(applied.Warnings)
 			return nil
 		}
 
@@ -945,9 +986,12 @@ func cmdConfig(ctx context.Context, c *conn, args []string) error {
 		return wrongArgs(fs)
 	}
 
-	if _, err := c.api.SetConfig(ctx, &boxv1.SetConfigRequest{Key: rest[0], Value: rest[1]}); err != nil {
+	set, err := c.api.SetConfig(ctx, &boxv1.SetConfigRequest{Key: rest[0], Value: rest[1]})
+	if err != nil {
 		return err
 	}
+
+	defer printWarnings(set.Warnings)
 
 	switch rest[0] {
 	case "domain", "email":

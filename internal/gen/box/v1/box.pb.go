@@ -97,12 +97,14 @@ type Service struct {
 	State string `protobuf:"bytes,4,opt,name=state,proto3" json:"state,omitempty"`
 	// Running is the image ID used to create the inspected container, even if it is stopped.
 	Running string `protobuf:"bytes,5,opt,name=running,proto3" json:"running,omitempty"`
-	// Previous is the retained image ID from the last image change for this service.
-	Previous string `protobuf:"bytes,6,opt,name=previous,proto3" json:"previous,omitempty"`
 	// Pending is an image ID recorded for manual deployment.
 	Pending string `protobuf:"bytes,7,opt,name=pending,proto3" json:"pending,omitempty"`
 	// Rejected is an image ID skipped by checks after a failed deployment or rollback.
-	Rejected      string `protobuf:"bytes,8,opt,name=rejected,proto3" json:"rejected,omitempty"`
+	Rejected      string       `protobuf:"bytes,8,opt,name=rejected,proto3" json:"rejected,omitempty"`
+	History       []*KeptImage `protobuf:"bytes,9,rep,name=history,proto3" json:"history,omitempty"`
+	Keep          int32        `protobuf:"varint,10,opt,name=keep,proto3" json:"keep,omitempty"`
+	Budget        int64        `protobuf:"varint,11,opt,name=budget,proto3" json:"budget,omitempty"`
+	KeptBytes     int64        `protobuf:"varint,12,opt,name=kept_bytes,json=keptBytes,proto3" json:"kept_bytes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -172,13 +174,6 @@ func (x *Service) GetRunning() string {
 	return ""
 }
 
-func (x *Service) GetPrevious() string {
-	if x != nil {
-		return x.Previous
-	}
-	return ""
-}
-
 func (x *Service) GetPending() string {
 	if x != nil {
 		return x.Pending
@@ -191,6 +186,86 @@ func (x *Service) GetRejected() string {
 		return x.Rejected
 	}
 	return ""
+}
+
+func (x *Service) GetHistory() []*KeptImage {
+	if x != nil {
+		return x.History
+	}
+	return nil
+}
+
+func (x *Service) GetKeep() int32 {
+	if x != nil {
+		return x.Keep
+	}
+	return 0
+}
+
+func (x *Service) GetBudget() int64 {
+	if x != nil {
+		return x.Budget
+	}
+	return 0
+}
+
+func (x *Service) GetKeptBytes() int64 {
+	if x != nil {
+		return x.KeptBytes
+	}
+	return 0
+}
+
+type KeptImage struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	DeployedAt    *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=deployed_at,json=deployedAt,proto3" json:"deployed_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *KeptImage) Reset() {
+	*x = KeptImage{}
+	mi := &file_box_v1_box_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KeptImage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KeptImage) ProtoMessage() {}
+
+func (x *KeptImage) ProtoReflect() protoreflect.Message {
+	mi := &file_box_v1_box_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KeptImage.ProtoReflect.Descriptor instead.
+func (*KeptImage) Descriptor() ([]byte, []int) {
+	return file_box_v1_box_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *KeptImage) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *KeptImage) GetDeployedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.DeployedAt
+	}
+	return nil
 }
 
 // Site contains the current site definition, service states, and saved operation results. Unset
@@ -212,7 +287,7 @@ type Site struct {
 
 func (x *Site) Reset() {
 	*x = Site{}
-	mi := &file_box_v1_box_proto_msgTypes[2]
+	mi := &file_box_v1_box_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -224,7 +299,7 @@ func (x *Site) String() string {
 func (*Site) ProtoMessage() {}
 
 func (x *Site) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[2]
+	mi := &file_box_v1_box_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -237,7 +312,7 @@ func (x *Site) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Site.ProtoReflect.Descriptor instead.
 func (*Site) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{2}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *Site) GetName() string {
@@ -302,7 +377,7 @@ type Hook struct {
 
 func (x *Hook) Reset() {
 	*x = Hook{}
-	mi := &file_box_v1_box_proto_msgTypes[3]
+	mi := &file_box_v1_box_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -314,7 +389,7 @@ func (x *Hook) String() string {
 func (*Hook) ProtoMessage() {}
 
 func (x *Hook) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[3]
+	mi := &file_box_v1_box_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -327,7 +402,7 @@ func (x *Hook) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Hook.ProtoReflect.Descriptor instead.
 func (*Hook) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{3}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Hook) GetSite() string {
@@ -360,7 +435,7 @@ type VersionRequest struct {
 
 func (x *VersionRequest) Reset() {
 	*x = VersionRequest{}
-	mi := &file_box_v1_box_proto_msgTypes[4]
+	mi := &file_box_v1_box_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -372,7 +447,7 @@ func (x *VersionRequest) String() string {
 func (*VersionRequest) ProtoMessage() {}
 
 func (x *VersionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[4]
+	mi := &file_box_v1_box_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -385,7 +460,7 @@ func (x *VersionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VersionRequest.ProtoReflect.Descriptor instead.
 func (*VersionRequest) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{4}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{5}
 }
 
 // VersionResponse contains the server build identifier.
@@ -398,7 +473,7 @@ type VersionResponse struct {
 
 func (x *VersionResponse) Reset() {
 	*x = VersionResponse{}
-	mi := &file_box_v1_box_proto_msgTypes[5]
+	mi := &file_box_v1_box_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -410,7 +485,7 @@ func (x *VersionResponse) String() string {
 func (*VersionResponse) ProtoMessage() {}
 
 func (x *VersionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[5]
+	mi := &file_box_v1_box_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -423,7 +498,7 @@ func (x *VersionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VersionResponse.ProtoReflect.Descriptor instead.
 func (*VersionResponse) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{5}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *VersionResponse) GetVersion() string {
@@ -442,7 +517,7 @@ type StatusRequest struct {
 
 func (x *StatusRequest) Reset() {
 	*x = StatusRequest{}
-	mi := &file_box_v1_box_proto_msgTypes[6]
+	mi := &file_box_v1_box_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -454,7 +529,7 @@ func (x *StatusRequest) String() string {
 func (*StatusRequest) ProtoMessage() {}
 
 func (x *StatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[6]
+	mi := &file_box_v1_box_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -467,7 +542,7 @@ func (x *StatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusRequest.ProtoReflect.Descriptor instead.
 func (*StatusRequest) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{6}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{7}
 }
 
 // StatusResponse combines server settings, polling state, and site results. Errors for
@@ -486,13 +561,17 @@ type StatusResponse struct {
 	Sites     []*Site                `protobuf:"bytes,8,rep,name=sites,proto3" json:"sites,omitempty"`
 	// Errors maps site names to failures encountered while reading their status.
 	Errors        map[string]string `protobuf:"bytes,9,rep,name=errors,proto3" json:"errors,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	KeptBytes     int64             `protobuf:"varint,10,opt,name=kept_bytes,json=keptBytes,proto3" json:"kept_bytes,omitempty"`
+	WorstBytes    int64             `protobuf:"varint,11,opt,name=worst_bytes,json=worstBytes,proto3" json:"worst_bytes,omitempty"`
+	FreeBytes     int64             `protobuf:"varint,12,opt,name=free_bytes,json=freeBytes,proto3" json:"free_bytes,omitempty"`
+	Warnings      []string          `protobuf:"bytes,13,rep,name=warnings,proto3" json:"warnings,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *StatusResponse) Reset() {
 	*x = StatusResponse{}
-	mi := &file_box_v1_box_proto_msgTypes[7]
+	mi := &file_box_v1_box_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -504,7 +583,7 @@ func (x *StatusResponse) String() string {
 func (*StatusResponse) ProtoMessage() {}
 
 func (x *StatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[7]
+	mi := &file_box_v1_box_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -517,7 +596,7 @@ func (x *StatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusResponse.ProtoReflect.Descriptor instead.
 func (*StatusResponse) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{7}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *StatusResponse) GetVersion() string {
@@ -583,6 +662,34 @@ func (x *StatusResponse) GetErrors() map[string]string {
 	return nil
 }
 
+func (x *StatusResponse) GetKeptBytes() int64 {
+	if x != nil {
+		return x.KeptBytes
+	}
+	return 0
+}
+
+func (x *StatusResponse) GetWorstBytes() int64 {
+	if x != nil {
+		return x.WorstBytes
+	}
+	return 0
+}
+
+func (x *StatusResponse) GetFreeBytes() int64 {
+	if x != nil {
+		return x.FreeBytes
+	}
+	return 0
+}
+
+func (x *StatusResponse) GetWarnings() []string {
+	if x != nil {
+		return x.Warnings
+	}
+	return nil
+}
+
 // GetSiteRequest selects a site by its stored name.
 type GetSiteRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -593,7 +700,7 @@ type GetSiteRequest struct {
 
 func (x *GetSiteRequest) Reset() {
 	*x = GetSiteRequest{}
-	mi := &file_box_v1_box_proto_msgTypes[8]
+	mi := &file_box_v1_box_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -605,7 +712,7 @@ func (x *GetSiteRequest) String() string {
 func (*GetSiteRequest) ProtoMessage() {}
 
 func (x *GetSiteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[8]
+	mi := &file_box_v1_box_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -618,7 +725,7 @@ func (x *GetSiteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSiteRequest.ProtoReflect.Descriptor instead.
 func (*GetSiteRequest) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{8}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetSiteRequest) GetSite() string {
@@ -638,7 +745,7 @@ type GetSiteResponse struct {
 
 func (x *GetSiteResponse) Reset() {
 	*x = GetSiteResponse{}
-	mi := &file_box_v1_box_proto_msgTypes[9]
+	mi := &file_box_v1_box_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -650,7 +757,7 @@ func (x *GetSiteResponse) String() string {
 func (*GetSiteResponse) ProtoMessage() {}
 
 func (x *GetSiteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[9]
+	mi := &file_box_v1_box_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -663,7 +770,7 @@ func (x *GetSiteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSiteResponse.ProtoReflect.Descriptor instead.
 func (*GetSiteResponse) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{9}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *GetSiteResponse) GetSite() *Site {
@@ -694,7 +801,7 @@ type CreateSiteRequest struct {
 
 func (x *CreateSiteRequest) Reset() {
 	*x = CreateSiteRequest{}
-	mi := &file_box_v1_box_proto_msgTypes[10]
+	mi := &file_box_v1_box_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -706,7 +813,7 @@ func (x *CreateSiteRequest) String() string {
 func (*CreateSiteRequest) ProtoMessage() {}
 
 func (x *CreateSiteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[10]
+	mi := &file_box_v1_box_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -719,7 +826,7 @@ func (x *CreateSiteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateSiteRequest.ProtoReflect.Descriptor instead.
 func (*CreateSiteRequest) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{10}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *CreateSiteRequest) GetName() string {
@@ -777,14 +884,15 @@ type CreateSiteResponse struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
 	Changes []*Change              `protobuf:"bytes,1,rep,name=changes,proto3" json:"changes,omitempty"`
 	// Hook is absent if the server has no configured domain.
-	Hook          *Hook `protobuf:"bytes,2,opt,name=hook,proto3" json:"hook,omitempty"`
+	Hook          *Hook    `protobuf:"bytes,2,opt,name=hook,proto3" json:"hook,omitempty"`
+	Warnings      []string `protobuf:"bytes,3,rep,name=warnings,proto3" json:"warnings,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CreateSiteResponse) Reset() {
 	*x = CreateSiteResponse{}
-	mi := &file_box_v1_box_proto_msgTypes[11]
+	mi := &file_box_v1_box_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -796,7 +904,7 @@ func (x *CreateSiteResponse) String() string {
 func (*CreateSiteResponse) ProtoMessage() {}
 
 func (x *CreateSiteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[11]
+	mi := &file_box_v1_box_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -809,7 +917,7 @@ func (x *CreateSiteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateSiteResponse.ProtoReflect.Descriptor instead.
 func (*CreateSiteResponse) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{11}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *CreateSiteResponse) GetChanges() []*Change {
@@ -822,6 +930,13 @@ func (x *CreateSiteResponse) GetChanges() []*Change {
 func (x *CreateSiteResponse) GetHook() *Hook {
 	if x != nil {
 		return x.Hook
+	}
+	return nil
+}
+
+func (x *CreateSiteResponse) GetWarnings() []string {
+	if x != nil {
+		return x.Warnings
 	}
 	return nil
 }
@@ -839,7 +954,7 @@ type RemoveSiteRequest struct {
 
 func (x *RemoveSiteRequest) Reset() {
 	*x = RemoveSiteRequest{}
-	mi := &file_box_v1_box_proto_msgTypes[12]
+	mi := &file_box_v1_box_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -851,7 +966,7 @@ func (x *RemoveSiteRequest) String() string {
 func (*RemoveSiteRequest) ProtoMessage() {}
 
 func (x *RemoveSiteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[12]
+	mi := &file_box_v1_box_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -864,7 +979,7 @@ func (x *RemoveSiteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveSiteRequest.ProtoReflect.Descriptor instead.
 func (*RemoveSiteRequest) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{12}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *RemoveSiteRequest) GetSite() string {
@@ -892,7 +1007,7 @@ type RemoveSiteResponse struct {
 
 func (x *RemoveSiteResponse) Reset() {
 	*x = RemoveSiteResponse{}
-	mi := &file_box_v1_box_proto_msgTypes[13]
+	mi := &file_box_v1_box_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -904,7 +1019,7 @@ func (x *RemoveSiteResponse) String() string {
 func (*RemoveSiteResponse) ProtoMessage() {}
 
 func (x *RemoveSiteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[13]
+	mi := &file_box_v1_box_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -917,7 +1032,7 @@ func (x *RemoveSiteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveSiteResponse.ProtoReflect.Descriptor instead.
 func (*RemoveSiteResponse) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{13}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *RemoveSiteResponse) GetKept() string {
@@ -939,7 +1054,7 @@ type DeployRequest struct {
 
 func (x *DeployRequest) Reset() {
 	*x = DeployRequest{}
-	mi := &file_box_v1_box_proto_msgTypes[14]
+	mi := &file_box_v1_box_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -951,7 +1066,7 @@ func (x *DeployRequest) String() string {
 func (*DeployRequest) ProtoMessage() {}
 
 func (x *DeployRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[14]
+	mi := &file_box_v1_box_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -964,7 +1079,7 @@ func (x *DeployRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeployRequest.ProtoReflect.Descriptor instead.
 func (*DeployRequest) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{14}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *DeployRequest) GetSite() string {
@@ -991,7 +1106,7 @@ type DeployResponse struct {
 
 func (x *DeployResponse) Reset() {
 	*x = DeployResponse{}
-	mi := &file_box_v1_box_proto_msgTypes[15]
+	mi := &file_box_v1_box_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1003,7 +1118,7 @@ func (x *DeployResponse) String() string {
 func (*DeployResponse) ProtoMessage() {}
 
 func (x *DeployResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[15]
+	mi := &file_box_v1_box_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1016,7 +1131,7 @@ func (x *DeployResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeployResponse.ProtoReflect.Descriptor instead.
 func (*DeployResponse) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{15}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *DeployResponse) GetChanges() []*Change {
@@ -1037,7 +1152,7 @@ type CheckRequest struct {
 
 func (x *CheckRequest) Reset() {
 	*x = CheckRequest{}
-	mi := &file_box_v1_box_proto_msgTypes[16]
+	mi := &file_box_v1_box_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1049,7 +1164,7 @@ func (x *CheckRequest) String() string {
 func (*CheckRequest) ProtoMessage() {}
 
 func (x *CheckRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[16]
+	mi := &file_box_v1_box_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1062,7 +1177,7 @@ func (x *CheckRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckRequest.ProtoReflect.Descriptor instead.
 func (*CheckRequest) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{16}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *CheckRequest) GetSites() []string {
@@ -1087,7 +1202,7 @@ type CheckResult struct {
 
 func (x *CheckResult) Reset() {
 	*x = CheckResult{}
-	mi := &file_box_v1_box_proto_msgTypes[17]
+	mi := &file_box_v1_box_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1099,7 +1214,7 @@ func (x *CheckResult) String() string {
 func (*CheckResult) ProtoMessage() {}
 
 func (x *CheckResult) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[17]
+	mi := &file_box_v1_box_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1112,7 +1227,7 @@ func (x *CheckResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckResult.ProtoReflect.Descriptor instead.
 func (*CheckResult) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{17}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *CheckResult) GetSite() string {
@@ -1153,7 +1268,7 @@ type CheckResponse struct {
 
 func (x *CheckResponse) Reset() {
 	*x = CheckResponse{}
-	mi := &file_box_v1_box_proto_msgTypes[18]
+	mi := &file_box_v1_box_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1165,7 +1280,7 @@ func (x *CheckResponse) String() string {
 func (*CheckResponse) ProtoMessage() {}
 
 func (x *CheckResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[18]
+	mi := &file_box_v1_box_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1178,7 +1293,7 @@ func (x *CheckResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckResponse.ProtoReflect.Descriptor instead.
 func (*CheckResponse) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{18}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *CheckResponse) GetResults() []*CheckResult {
@@ -1192,13 +1307,14 @@ func (x *CheckResponse) GetResults() []*CheckResult {
 type RollbackRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Site          string                 `protobuf:"bytes,1,opt,name=site,proto3" json:"site,omitempty"`
+	To            string                 `protobuf:"bytes,2,opt,name=to,proto3" json:"to,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RollbackRequest) Reset() {
 	*x = RollbackRequest{}
-	mi := &file_box_v1_box_proto_msgTypes[19]
+	mi := &file_box_v1_box_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1210,7 +1326,7 @@ func (x *RollbackRequest) String() string {
 func (*RollbackRequest) ProtoMessage() {}
 
 func (x *RollbackRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[19]
+	mi := &file_box_v1_box_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1223,12 +1339,19 @@ func (x *RollbackRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RollbackRequest.ProtoReflect.Descriptor instead.
 func (*RollbackRequest) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{19}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *RollbackRequest) GetSite() string {
 	if x != nil {
 		return x.Site
+	}
+	return ""
+}
+
+func (x *RollbackRequest) GetTo() string {
+	if x != nil {
+		return x.To
 	}
 	return ""
 }
@@ -1243,7 +1366,7 @@ type RollbackResponse struct {
 
 func (x *RollbackResponse) Reset() {
 	*x = RollbackResponse{}
-	mi := &file_box_v1_box_proto_msgTypes[20]
+	mi := &file_box_v1_box_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1255,7 +1378,7 @@ func (x *RollbackResponse) String() string {
 func (*RollbackResponse) ProtoMessage() {}
 
 func (x *RollbackResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[20]
+	mi := &file_box_v1_box_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1268,7 +1391,7 @@ func (x *RollbackResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RollbackResponse.ProtoReflect.Descriptor instead.
 func (*RollbackResponse) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{20}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *RollbackResponse) GetChanges() []*Change {
@@ -1295,7 +1418,7 @@ type LogsRequest struct {
 
 func (x *LogsRequest) Reset() {
 	*x = LogsRequest{}
-	mi := &file_box_v1_box_proto_msgTypes[21]
+	mi := &file_box_v1_box_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1307,7 +1430,7 @@ func (x *LogsRequest) String() string {
 func (*LogsRequest) ProtoMessage() {}
 
 func (x *LogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[21]
+	mi := &file_box_v1_box_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1320,7 +1443,7 @@ func (x *LogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogsRequest.ProtoReflect.Descriptor instead.
 func (*LogsRequest) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{21}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *LogsRequest) GetSite() string {
@@ -1362,7 +1485,7 @@ type LogsResponse struct {
 
 func (x *LogsResponse) Reset() {
 	*x = LogsResponse{}
-	mi := &file_box_v1_box_proto_msgTypes[22]
+	mi := &file_box_v1_box_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1374,7 +1497,7 @@ func (x *LogsResponse) String() string {
 func (*LogsResponse) ProtoMessage() {}
 
 func (x *LogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[22]
+	mi := &file_box_v1_box_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1387,7 +1510,7 @@ func (x *LogsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogsResponse.ProtoReflect.Descriptor instead.
 func (*LogsResponse) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{22}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *LogsResponse) GetData() []byte {
@@ -1407,7 +1530,7 @@ type GetComposeRequest struct {
 
 func (x *GetComposeRequest) Reset() {
 	*x = GetComposeRequest{}
-	mi := &file_box_v1_box_proto_msgTypes[23]
+	mi := &file_box_v1_box_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1419,7 +1542,7 @@ func (x *GetComposeRequest) String() string {
 func (*GetComposeRequest) ProtoMessage() {}
 
 func (x *GetComposeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[23]
+	mi := &file_box_v1_box_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1432,7 +1555,7 @@ func (x *GetComposeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetComposeRequest.ProtoReflect.Descriptor instead.
 func (*GetComposeRequest) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{23}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *GetComposeRequest) GetSite() string {
@@ -1452,7 +1575,7 @@ type GetComposeResponse struct {
 
 func (x *GetComposeResponse) Reset() {
 	*x = GetComposeResponse{}
-	mi := &file_box_v1_box_proto_msgTypes[24]
+	mi := &file_box_v1_box_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1464,7 +1587,7 @@ func (x *GetComposeResponse) String() string {
 func (*GetComposeResponse) ProtoMessage() {}
 
 func (x *GetComposeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[24]
+	mi := &file_box_v1_box_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1477,7 +1600,7 @@ func (x *GetComposeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetComposeResponse.ProtoReflect.Descriptor instead.
 func (*GetComposeResponse) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{24}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *GetComposeResponse) GetText() string {
@@ -1498,7 +1621,7 @@ type ApplyComposeRequest struct {
 
 func (x *ApplyComposeRequest) Reset() {
 	*x = ApplyComposeRequest{}
-	mi := &file_box_v1_box_proto_msgTypes[25]
+	mi := &file_box_v1_box_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1510,7 +1633,7 @@ func (x *ApplyComposeRequest) String() string {
 func (*ApplyComposeRequest) ProtoMessage() {}
 
 func (x *ApplyComposeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[25]
+	mi := &file_box_v1_box_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1523,7 +1646,7 @@ func (x *ApplyComposeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyComposeRequest.ProtoReflect.Descriptor instead.
 func (*ApplyComposeRequest) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{25}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ApplyComposeRequest) GetSite() string {
@@ -1543,13 +1666,14 @@ func (x *ApplyComposeRequest) GetText() string {
 // ApplyComposeResponse confirms that the edited site was applied successfully.
 type ApplyComposeResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Warnings      []string               `protobuf:"bytes,1,rep,name=warnings,proto3" json:"warnings,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ApplyComposeResponse) Reset() {
 	*x = ApplyComposeResponse{}
-	mi := &file_box_v1_box_proto_msgTypes[26]
+	mi := &file_box_v1_box_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1561,7 +1685,7 @@ func (x *ApplyComposeResponse) String() string {
 func (*ApplyComposeResponse) ProtoMessage() {}
 
 func (x *ApplyComposeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[26]
+	mi := &file_box_v1_box_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1574,7 +1698,14 @@ func (x *ApplyComposeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyComposeResponse.ProtoReflect.Descriptor instead.
 func (*ApplyComposeResponse) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{26}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *ApplyComposeResponse) GetWarnings() []string {
+	if x != nil {
+		return x.Warnings
+	}
+	return nil
 }
 
 // GetConfigRequest requests all supported server settings.
@@ -1586,7 +1717,7 @@ type GetConfigRequest struct {
 
 func (x *GetConfigRequest) Reset() {
 	*x = GetConfigRequest{}
-	mi := &file_box_v1_box_proto_msgTypes[27]
+	mi := &file_box_v1_box_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1598,7 +1729,7 @@ func (x *GetConfigRequest) String() string {
 func (*GetConfigRequest) ProtoMessage() {}
 
 func (x *GetConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[27]
+	mi := &file_box_v1_box_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1611,7 +1742,7 @@ func (x *GetConfigRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetConfigRequest.ProtoReflect.Descriptor instead.
 func (*GetConfigRequest) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{27}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{28}
 }
 
 // Setting pairs a supported configuration key with its string value.
@@ -1625,7 +1756,7 @@ type Setting struct {
 
 func (x *Setting) Reset() {
 	*x = Setting{}
-	mi := &file_box_v1_box_proto_msgTypes[28]
+	mi := &file_box_v1_box_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1637,7 +1768,7 @@ func (x *Setting) String() string {
 func (*Setting) ProtoMessage() {}
 
 func (x *Setting) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[28]
+	mi := &file_box_v1_box_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1650,7 +1781,7 @@ func (x *Setting) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Setting.ProtoReflect.Descriptor instead.
 func (*Setting) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{28}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *Setting) GetKey() string {
@@ -1678,7 +1809,7 @@ type GetConfigResponse struct {
 
 func (x *GetConfigResponse) Reset() {
 	*x = GetConfigResponse{}
-	mi := &file_box_v1_box_proto_msgTypes[29]
+	mi := &file_box_v1_box_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1690,7 +1821,7 @@ func (x *GetConfigResponse) String() string {
 func (*GetConfigResponse) ProtoMessage() {}
 
 func (x *GetConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[29]
+	mi := &file_box_v1_box_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1703,7 +1834,7 @@ func (x *GetConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetConfigResponse.ProtoReflect.Descriptor instead.
 func (*GetConfigResponse) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{29}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *GetConfigResponse) GetSettings() []*Setting {
@@ -1724,7 +1855,7 @@ type SetConfigRequest struct {
 
 func (x *SetConfigRequest) Reset() {
 	*x = SetConfigRequest{}
-	mi := &file_box_v1_box_proto_msgTypes[30]
+	mi := &file_box_v1_box_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1736,7 +1867,7 @@ func (x *SetConfigRequest) String() string {
 func (*SetConfigRequest) ProtoMessage() {}
 
 func (x *SetConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[30]
+	mi := &file_box_v1_box_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1749,7 +1880,7 @@ func (x *SetConfigRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetConfigRequest.ProtoReflect.Descriptor instead.
 func (*SetConfigRequest) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{30}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *SetConfigRequest) GetKey() string {
@@ -1770,13 +1901,14 @@ func (x *SetConfigRequest) GetValue() string {
 // succeeded.
 type SetConfigResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Warnings      []string               `protobuf:"bytes,1,rep,name=warnings,proto3" json:"warnings,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SetConfigResponse) Reset() {
 	*x = SetConfigResponse{}
-	mi := &file_box_v1_box_proto_msgTypes[31]
+	mi := &file_box_v1_box_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1788,7 +1920,7 @@ func (x *SetConfigResponse) String() string {
 func (*SetConfigResponse) ProtoMessage() {}
 
 func (x *SetConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[31]
+	mi := &file_box_v1_box_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1801,7 +1933,14 @@ func (x *SetConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetConfigResponse.ProtoReflect.Descriptor instead.
 func (*SetConfigResponse) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{31}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *SetConfigResponse) GetWarnings() []string {
+	if x != nil {
+		return x.Warnings
+	}
+	return nil
 }
 
 // GetHookRequest selects a site whose webhook URL and secret should be returned.
@@ -1814,7 +1953,7 @@ type GetHookRequest struct {
 
 func (x *GetHookRequest) Reset() {
 	*x = GetHookRequest{}
-	mi := &file_box_v1_box_proto_msgTypes[32]
+	mi := &file_box_v1_box_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1826,7 +1965,7 @@ func (x *GetHookRequest) String() string {
 func (*GetHookRequest) ProtoMessage() {}
 
 func (x *GetHookRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[32]
+	mi := &file_box_v1_box_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1839,7 +1978,7 @@ func (x *GetHookRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetHookRequest.ProtoReflect.Descriptor instead.
 func (*GetHookRequest) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{32}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *GetHookRequest) GetSite() string {
@@ -1859,7 +1998,7 @@ type GetHookResponse struct {
 
 func (x *GetHookResponse) Reset() {
 	*x = GetHookResponse{}
-	mi := &file_box_v1_box_proto_msgTypes[33]
+	mi := &file_box_v1_box_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1871,7 +2010,7 @@ func (x *GetHookResponse) String() string {
 func (*GetHookResponse) ProtoMessage() {}
 
 func (x *GetHookResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[33]
+	mi := &file_box_v1_box_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1884,7 +2023,7 @@ func (x *GetHookResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetHookResponse.ProtoReflect.Descriptor instead.
 func (*GetHookResponse) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{33}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *GetHookResponse) GetHook() *Hook {
@@ -1904,7 +2043,7 @@ type RotateHookRequest struct {
 
 func (x *RotateHookRequest) Reset() {
 	*x = RotateHookRequest{}
-	mi := &file_box_v1_box_proto_msgTypes[34]
+	mi := &file_box_v1_box_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1916,7 +2055,7 @@ func (x *RotateHookRequest) String() string {
 func (*RotateHookRequest) ProtoMessage() {}
 
 func (x *RotateHookRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[34]
+	mi := &file_box_v1_box_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1929,7 +2068,7 @@ func (x *RotateHookRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RotateHookRequest.ProtoReflect.Descriptor instead.
 func (*RotateHookRequest) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{34}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *RotateHookRequest) GetSite() string {
@@ -1949,7 +2088,7 @@ type RotateHookResponse struct {
 
 func (x *RotateHookResponse) Reset() {
 	*x = RotateHookResponse{}
-	mi := &file_box_v1_box_proto_msgTypes[35]
+	mi := &file_box_v1_box_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1961,7 +2100,7 @@ func (x *RotateHookResponse) String() string {
 func (*RotateHookResponse) ProtoMessage() {}
 
 func (x *RotateHookResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[35]
+	mi := &file_box_v1_box_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1974,7 +2113,7 @@ func (x *RotateHookResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RotateHookResponse.ProtoReflect.Descriptor instead.
 func (*RotateHookResponse) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{35}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *RotateHookResponse) GetHook() *Hook {
@@ -1993,7 +2132,7 @@ type ListHooksRequest struct {
 
 func (x *ListHooksRequest) Reset() {
 	*x = ListHooksRequest{}
-	mi := &file_box_v1_box_proto_msgTypes[36]
+	mi := &file_box_v1_box_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2005,7 +2144,7 @@ func (x *ListHooksRequest) String() string {
 func (*ListHooksRequest) ProtoMessage() {}
 
 func (x *ListHooksRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[36]
+	mi := &file_box_v1_box_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2018,7 +2157,7 @@ func (x *ListHooksRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListHooksRequest.ProtoReflect.Descriptor instead.
 func (*ListHooksRequest) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{36}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{37}
 }
 
 // ListHooksResponse contains webhook URLs with the secret fields omitted.
@@ -2031,7 +2170,7 @@ type ListHooksResponse struct {
 
 func (x *ListHooksResponse) Reset() {
 	*x = ListHooksResponse{}
-	mi := &file_box_v1_box_proto_msgTypes[37]
+	mi := &file_box_v1_box_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2043,7 +2182,7 @@ func (x *ListHooksResponse) String() string {
 func (*ListHooksResponse) ProtoMessage() {}
 
 func (x *ListHooksResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[37]
+	mi := &file_box_v1_box_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2056,7 +2195,7 @@ func (x *ListHooksResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListHooksResponse.ProtoReflect.Descriptor instead.
 func (*ListHooksResponse) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{37}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *ListHooksResponse) GetHooks() []*Hook {
@@ -2077,7 +2216,7 @@ type RotateKeyRequest struct {
 
 func (x *RotateKeyRequest) Reset() {
 	*x = RotateKeyRequest{}
-	mi := &file_box_v1_box_proto_msgTypes[38]
+	mi := &file_box_v1_box_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2089,7 +2228,7 @@ func (x *RotateKeyRequest) String() string {
 func (*RotateKeyRequest) ProtoMessage() {}
 
 func (x *RotateKeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[38]
+	mi := &file_box_v1_box_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2102,7 +2241,7 @@ func (x *RotateKeyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RotateKeyRequest.ProtoReflect.Descriptor instead.
 func (*RotateKeyRequest) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{38}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *RotateKeyRequest) GetKey() string {
@@ -2121,7 +2260,7 @@ type RotateKeyResponse struct {
 
 func (x *RotateKeyResponse) Reset() {
 	*x = RotateKeyResponse{}
-	mi := &file_box_v1_box_proto_msgTypes[39]
+	mi := &file_box_v1_box_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2133,7 +2272,7 @@ func (x *RotateKeyResponse) String() string {
 func (*RotateKeyResponse) ProtoMessage() {}
 
 func (x *RotateKeyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[39]
+	mi := &file_box_v1_box_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2146,7 +2285,7 @@ func (x *RotateKeyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RotateKeyResponse.ProtoReflect.Descriptor instead.
 func (*RotateKeyResponse) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{39}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{40}
 }
 
 // DockerInfoRequest requests the server Docker configuration and usage report.
@@ -2158,7 +2297,7 @@ type DockerInfoRequest struct {
 
 func (x *DockerInfoRequest) Reset() {
 	*x = DockerInfoRequest{}
-	mi := &file_box_v1_box_proto_msgTypes[40]
+	mi := &file_box_v1_box_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2170,7 +2309,7 @@ func (x *DockerInfoRequest) String() string {
 func (*DockerInfoRequest) ProtoMessage() {}
 
 func (x *DockerInfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[40]
+	mi := &file_box_v1_box_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2183,7 +2322,7 @@ func (x *DockerInfoRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerInfoRequest.ProtoReflect.Descriptor instead.
 func (*DockerInfoRequest) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{40}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{41}
 }
 
 // DockerInfoResponse contains Docker versions, network and proxy state, daemon settings,
@@ -2204,7 +2343,7 @@ type DockerInfoResponse struct {
 
 func (x *DockerInfoResponse) Reset() {
 	*x = DockerInfoResponse{}
-	mi := &file_box_v1_box_proto_msgTypes[41]
+	mi := &file_box_v1_box_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2216,7 +2355,7 @@ func (x *DockerInfoResponse) String() string {
 func (*DockerInfoResponse) ProtoMessage() {}
 
 func (x *DockerInfoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[41]
+	mi := &file_box_v1_box_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2229,7 +2368,7 @@ func (x *DockerInfoResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerInfoResponse.ProtoReflect.Descriptor instead.
 func (*DockerInfoResponse) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{41}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *DockerInfoResponse) GetEngine() string {
@@ -2293,7 +2432,7 @@ type DockerLoginRequest struct {
 
 func (x *DockerLoginRequest) Reset() {
 	*x = DockerLoginRequest{}
-	mi := &file_box_v1_box_proto_msgTypes[42]
+	mi := &file_box_v1_box_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2305,7 +2444,7 @@ func (x *DockerLoginRequest) String() string {
 func (*DockerLoginRequest) ProtoMessage() {}
 
 func (x *DockerLoginRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[42]
+	mi := &file_box_v1_box_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2318,7 +2457,7 @@ func (x *DockerLoginRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerLoginRequest.ProtoReflect.Descriptor instead.
 func (*DockerLoginRequest) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{42}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *DockerLoginRequest) GetRegistry() string {
@@ -2351,7 +2490,7 @@ type DockerLoginResponse struct {
 
 func (x *DockerLoginResponse) Reset() {
 	*x = DockerLoginResponse{}
-	mi := &file_box_v1_box_proto_msgTypes[43]
+	mi := &file_box_v1_box_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2363,7 +2502,7 @@ func (x *DockerLoginResponse) String() string {
 func (*DockerLoginResponse) ProtoMessage() {}
 
 func (x *DockerLoginResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[43]
+	mi := &file_box_v1_box_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2376,7 +2515,7 @@ func (x *DockerLoginResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerLoginResponse.ProtoReflect.Descriptor instead.
 func (*DockerLoginResponse) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{43}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{44}
 }
 
 type PruneRequest struct {
@@ -2387,7 +2526,7 @@ type PruneRequest struct {
 
 func (x *PruneRequest) Reset() {
 	*x = PruneRequest{}
-	mi := &file_box_v1_box_proto_msgTypes[44]
+	mi := &file_box_v1_box_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2399,7 +2538,7 @@ func (x *PruneRequest) String() string {
 func (*PruneRequest) ProtoMessage() {}
 
 func (x *PruneRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[44]
+	mi := &file_box_v1_box_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2412,7 +2551,7 @@ func (x *PruneRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PruneRequest.ProtoReflect.Descriptor instead.
 func (*PruneRequest) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{44}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{45}
 }
 
 type PruneResponse struct {
@@ -2424,7 +2563,7 @@ type PruneResponse struct {
 
 func (x *PruneResponse) Reset() {
 	*x = PruneResponse{}
-	mi := &file_box_v1_box_proto_msgTypes[45]
+	mi := &file_box_v1_box_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2436,7 +2575,7 @@ func (x *PruneResponse) String() string {
 func (*PruneResponse) ProtoMessage() {}
 
 func (x *PruneResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_box_v1_box_proto_msgTypes[45]
+	mi := &file_box_v1_box_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2449,7 +2588,7 @@ func (x *PruneResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PruneResponse.ProtoReflect.Descriptor instead.
 func (*PruneResponse) Descriptor() ([]byte, []int) {
-	return file_box_v1_box_proto_rawDescGZIP(), []int{45}
+	return file_box_v1_box_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *PruneResponse) GetReclaimed() string {
@@ -2467,16 +2606,25 @@ const file_box_v1_box_proto_rawDesc = "" +
 	"\x06Change\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12\x12\n" +
 	"\x04from\x18\x02 \x01(\tR\x04from\x12\x0e\n" +
-	"\x02to\x18\x03 \x01(\tR\x02to\"\xcd\x01\n" +
+	"\x02to\x18\x03 \x01(\tR\x02to\"\xa9\x02\n" +
 	"\aService\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05image\x18\x02 \x01(\tR\x05image\x12\x16\n" +
 	"\x06policy\x18\x03 \x01(\tR\x06policy\x12\x14\n" +
 	"\x05state\x18\x04 \x01(\tR\x05state\x12\x18\n" +
-	"\arunning\x18\x05 \x01(\tR\arunning\x12\x1a\n" +
-	"\bprevious\x18\x06 \x01(\tR\bprevious\x12\x18\n" +
+	"\arunning\x18\x05 \x01(\tR\arunning\x12\x18\n" +
 	"\apending\x18\a \x01(\tR\apending\x12\x1a\n" +
-	"\brejected\x18\b \x01(\tR\brejected\"\x92\x02\n" +
+	"\brejected\x18\b \x01(\tR\brejected\x12+\n" +
+	"\ahistory\x18\t \x03(\v2\x11.box.v1.KeptImageR\ahistory\x12\x12\n" +
+	"\x04keep\x18\n" +
+	" \x01(\x05R\x04keep\x12\x16\n" +
+	"\x06budget\x18\v \x01(\x03R\x06budget\x12\x1d\n" +
+	"\n" +
+	"kept_bytes\x18\f \x01(\x03R\tkeptBytes\"X\n" +
+	"\tKeptImage\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12;\n" +
+	"\vdeployed_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"deployedAt\"\x92\x02\n" +
 	"\x04Site\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\adomains\x18\x02 \x03(\tR\adomains\x12+\n" +
@@ -2495,7 +2643,7 @@ const file_box_v1_box_proto_rawDesc = "" +
 	"\x0eVersionRequest\"+\n" +
 	"\x0fVersionResponse\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\"\x0f\n" +
-	"\rStatusRequest\"\x95\x03\n" +
+	"\rStatusRequest\"\x90\x04\n" +
 	"\x0eStatusResponse\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x16\n" +
 	"\x06domain\x18\x02 \x01(\tR\x06domain\x12\x14\n" +
@@ -2507,7 +2655,15 @@ const file_box_v1_box_proto_rawDesc = "" +
 	"next_check\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tnextCheck\x12\x16\n" +
 	"\x06notify\x18\a \x01(\tR\x06notify\x12\"\n" +
 	"\x05sites\x18\b \x03(\v2\f.box.v1.SiteR\x05sites\x12:\n" +
-	"\x06errors\x18\t \x03(\v2\".box.v1.StatusResponse.ErrorsEntryR\x06errors\x1a9\n" +
+	"\x06errors\x18\t \x03(\v2\".box.v1.StatusResponse.ErrorsEntryR\x06errors\x12\x1d\n" +
+	"\n" +
+	"kept_bytes\x18\n" +
+	" \x01(\x03R\tkeptBytes\x12\x1f\n" +
+	"\vworst_bytes\x18\v \x01(\x03R\n" +
+	"worstBytes\x12\x1d\n" +
+	"\n" +
+	"free_bytes\x18\f \x01(\x03R\tfreeBytes\x12\x1a\n" +
+	"\bwarnings\x18\r \x03(\tR\bwarnings\x1a9\n" +
 	"\vErrorsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"$\n" +
@@ -2522,10 +2678,11 @@ const file_box_v1_box_proto_rawDesc = "" +
 	"\tredirects\x18\x04 \x03(\tR\tredirects\x12\x12\n" +
 	"\x04port\x18\x05 \x01(\x05R\x04port\x12\x16\n" +
 	"\x06policy\x18\x06 \x01(\tR\x06policy\x12\x16\n" +
-	"\x06deploy\x18\a \x01(\bR\x06deploy\"`\n" +
+	"\x06deploy\x18\a \x01(\bR\x06deploy\"|\n" +
 	"\x12CreateSiteResponse\x12(\n" +
 	"\achanges\x18\x01 \x03(\v2\x0e.box.v1.ChangeR\achanges\x12 \n" +
-	"\x04hook\x18\x02 \x01(\v2\f.box.v1.HookR\x04hook\"=\n" +
+	"\x04hook\x18\x02 \x01(\v2\f.box.v1.HookR\x04hook\x12\x1a\n" +
+	"\bwarnings\x18\x03 \x03(\tR\bwarnings\"=\n" +
 	"\x11RemoveSiteRequest\x12\x12\n" +
 	"\x04site\x18\x01 \x01(\tR\x04site\x12\x14\n" +
 	"\x05purge\x18\x02 \x01(\bR\x05purge\"(\n" +
@@ -2544,9 +2701,10 @@ const file_box_v1_box_proto_rawDesc = "" +
 	"\awaiting\x18\x03 \x03(\v2\x0e.box.v1.ChangeR\awaiting\x12\x14\n" +
 	"\x05error\x18\x04 \x01(\tR\x05error\">\n" +
 	"\rCheckResponse\x12-\n" +
-	"\aresults\x18\x01 \x03(\v2\x13.box.v1.CheckResultR\aresults\"%\n" +
+	"\aresults\x18\x01 \x03(\v2\x13.box.v1.CheckResultR\aresults\"5\n" +
 	"\x0fRollbackRequest\x12\x12\n" +
-	"\x04site\x18\x01 \x01(\tR\x04site\"<\n" +
+	"\x04site\x18\x01 \x01(\tR\x04site\x12\x0e\n" +
+	"\x02to\x18\x02 \x01(\tR\x02to\"<\n" +
 	"\x10RollbackResponse\x12(\n" +
 	"\achanges\x18\x01 \x03(\v2\x0e.box.v1.ChangeR\achanges\"i\n" +
 	"\vLogsRequest\x12\x12\n" +
@@ -2562,8 +2720,9 @@ const file_box_v1_box_proto_rawDesc = "" +
 	"\x04text\x18\x01 \x01(\tR\x04text\"=\n" +
 	"\x13ApplyComposeRequest\x12\x12\n" +
 	"\x04site\x18\x01 \x01(\tR\x04site\x12\x12\n" +
-	"\x04text\x18\x02 \x01(\tR\x04text\"\x16\n" +
-	"\x14ApplyComposeResponse\"\x12\n" +
+	"\x04text\x18\x02 \x01(\tR\x04text\"2\n" +
+	"\x14ApplyComposeResponse\x12\x1a\n" +
+	"\bwarnings\x18\x01 \x03(\tR\bwarnings\"\x12\n" +
 	"\x10GetConfigRequest\"1\n" +
 	"\aSetting\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
@@ -2572,8 +2731,9 @@ const file_box_v1_box_proto_rawDesc = "" +
 	"\bsettings\x18\x01 \x03(\v2\x0f.box.v1.SettingR\bsettings\":\n" +
 	"\x10SetConfigRequest\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value\"\x13\n" +
-	"\x11SetConfigResponse\"$\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\"/\n" +
+	"\x11SetConfigResponse\x12\x1a\n" +
+	"\bwarnings\x18\x01 \x03(\tR\bwarnings\"$\n" +
 	"\x0eGetHookRequest\x12\x12\n" +
 	"\x04site\x18\x01 \x01(\tR\x04site\"3\n" +
 	"\x0fGetHookResponse\x12 \n" +
@@ -2648,122 +2808,125 @@ func file_box_v1_box_proto_rawDescGZIP() []byte {
 	return file_box_v1_box_proto_rawDescData
 }
 
-var file_box_v1_box_proto_msgTypes = make([]protoimpl.MessageInfo, 47)
+var file_box_v1_box_proto_msgTypes = make([]protoimpl.MessageInfo, 48)
 var file_box_v1_box_proto_goTypes = []any{
 	(*Change)(nil),                // 0: box.v1.Change
 	(*Service)(nil),               // 1: box.v1.Service
-	(*Site)(nil),                  // 2: box.v1.Site
-	(*Hook)(nil),                  // 3: box.v1.Hook
-	(*VersionRequest)(nil),        // 4: box.v1.VersionRequest
-	(*VersionResponse)(nil),       // 5: box.v1.VersionResponse
-	(*StatusRequest)(nil),         // 6: box.v1.StatusRequest
-	(*StatusResponse)(nil),        // 7: box.v1.StatusResponse
-	(*GetSiteRequest)(nil),        // 8: box.v1.GetSiteRequest
-	(*GetSiteResponse)(nil),       // 9: box.v1.GetSiteResponse
-	(*CreateSiteRequest)(nil),     // 10: box.v1.CreateSiteRequest
-	(*CreateSiteResponse)(nil),    // 11: box.v1.CreateSiteResponse
-	(*RemoveSiteRequest)(nil),     // 12: box.v1.RemoveSiteRequest
-	(*RemoveSiteResponse)(nil),    // 13: box.v1.RemoveSiteResponse
-	(*DeployRequest)(nil),         // 14: box.v1.DeployRequest
-	(*DeployResponse)(nil),        // 15: box.v1.DeployResponse
-	(*CheckRequest)(nil),          // 16: box.v1.CheckRequest
-	(*CheckResult)(nil),           // 17: box.v1.CheckResult
-	(*CheckResponse)(nil),         // 18: box.v1.CheckResponse
-	(*RollbackRequest)(nil),       // 19: box.v1.RollbackRequest
-	(*RollbackResponse)(nil),      // 20: box.v1.RollbackResponse
-	(*LogsRequest)(nil),           // 21: box.v1.LogsRequest
-	(*LogsResponse)(nil),          // 22: box.v1.LogsResponse
-	(*GetComposeRequest)(nil),     // 23: box.v1.GetComposeRequest
-	(*GetComposeResponse)(nil),    // 24: box.v1.GetComposeResponse
-	(*ApplyComposeRequest)(nil),   // 25: box.v1.ApplyComposeRequest
-	(*ApplyComposeResponse)(nil),  // 26: box.v1.ApplyComposeResponse
-	(*GetConfigRequest)(nil),      // 27: box.v1.GetConfigRequest
-	(*Setting)(nil),               // 28: box.v1.Setting
-	(*GetConfigResponse)(nil),     // 29: box.v1.GetConfigResponse
-	(*SetConfigRequest)(nil),      // 30: box.v1.SetConfigRequest
-	(*SetConfigResponse)(nil),     // 31: box.v1.SetConfigResponse
-	(*GetHookRequest)(nil),        // 32: box.v1.GetHookRequest
-	(*GetHookResponse)(nil),       // 33: box.v1.GetHookResponse
-	(*RotateHookRequest)(nil),     // 34: box.v1.RotateHookRequest
-	(*RotateHookResponse)(nil),    // 35: box.v1.RotateHookResponse
-	(*ListHooksRequest)(nil),      // 36: box.v1.ListHooksRequest
-	(*ListHooksResponse)(nil),     // 37: box.v1.ListHooksResponse
-	(*RotateKeyRequest)(nil),      // 38: box.v1.RotateKeyRequest
-	(*RotateKeyResponse)(nil),     // 39: box.v1.RotateKeyResponse
-	(*DockerInfoRequest)(nil),     // 40: box.v1.DockerInfoRequest
-	(*DockerInfoResponse)(nil),    // 41: box.v1.DockerInfoResponse
-	(*DockerLoginRequest)(nil),    // 42: box.v1.DockerLoginRequest
-	(*DockerLoginResponse)(nil),   // 43: box.v1.DockerLoginResponse
-	(*PruneRequest)(nil),          // 44: box.v1.PruneRequest
-	(*PruneResponse)(nil),         // 45: box.v1.PruneResponse
-	nil,                           // 46: box.v1.StatusResponse.ErrorsEntry
-	(*timestamppb.Timestamp)(nil), // 47: google.protobuf.Timestamp
+	(*KeptImage)(nil),             // 2: box.v1.KeptImage
+	(*Site)(nil),                  // 3: box.v1.Site
+	(*Hook)(nil),                  // 4: box.v1.Hook
+	(*VersionRequest)(nil),        // 5: box.v1.VersionRequest
+	(*VersionResponse)(nil),       // 6: box.v1.VersionResponse
+	(*StatusRequest)(nil),         // 7: box.v1.StatusRequest
+	(*StatusResponse)(nil),        // 8: box.v1.StatusResponse
+	(*GetSiteRequest)(nil),        // 9: box.v1.GetSiteRequest
+	(*GetSiteResponse)(nil),       // 10: box.v1.GetSiteResponse
+	(*CreateSiteRequest)(nil),     // 11: box.v1.CreateSiteRequest
+	(*CreateSiteResponse)(nil),    // 12: box.v1.CreateSiteResponse
+	(*RemoveSiteRequest)(nil),     // 13: box.v1.RemoveSiteRequest
+	(*RemoveSiteResponse)(nil),    // 14: box.v1.RemoveSiteResponse
+	(*DeployRequest)(nil),         // 15: box.v1.DeployRequest
+	(*DeployResponse)(nil),        // 16: box.v1.DeployResponse
+	(*CheckRequest)(nil),          // 17: box.v1.CheckRequest
+	(*CheckResult)(nil),           // 18: box.v1.CheckResult
+	(*CheckResponse)(nil),         // 19: box.v1.CheckResponse
+	(*RollbackRequest)(nil),       // 20: box.v1.RollbackRequest
+	(*RollbackResponse)(nil),      // 21: box.v1.RollbackResponse
+	(*LogsRequest)(nil),           // 22: box.v1.LogsRequest
+	(*LogsResponse)(nil),          // 23: box.v1.LogsResponse
+	(*GetComposeRequest)(nil),     // 24: box.v1.GetComposeRequest
+	(*GetComposeResponse)(nil),    // 25: box.v1.GetComposeResponse
+	(*ApplyComposeRequest)(nil),   // 26: box.v1.ApplyComposeRequest
+	(*ApplyComposeResponse)(nil),  // 27: box.v1.ApplyComposeResponse
+	(*GetConfigRequest)(nil),      // 28: box.v1.GetConfigRequest
+	(*Setting)(nil),               // 29: box.v1.Setting
+	(*GetConfigResponse)(nil),     // 30: box.v1.GetConfigResponse
+	(*SetConfigRequest)(nil),      // 31: box.v1.SetConfigRequest
+	(*SetConfigResponse)(nil),     // 32: box.v1.SetConfigResponse
+	(*GetHookRequest)(nil),        // 33: box.v1.GetHookRequest
+	(*GetHookResponse)(nil),       // 34: box.v1.GetHookResponse
+	(*RotateHookRequest)(nil),     // 35: box.v1.RotateHookRequest
+	(*RotateHookResponse)(nil),    // 36: box.v1.RotateHookResponse
+	(*ListHooksRequest)(nil),      // 37: box.v1.ListHooksRequest
+	(*ListHooksResponse)(nil),     // 38: box.v1.ListHooksResponse
+	(*RotateKeyRequest)(nil),      // 39: box.v1.RotateKeyRequest
+	(*RotateKeyResponse)(nil),     // 40: box.v1.RotateKeyResponse
+	(*DockerInfoRequest)(nil),     // 41: box.v1.DockerInfoRequest
+	(*DockerInfoResponse)(nil),    // 42: box.v1.DockerInfoResponse
+	(*DockerLoginRequest)(nil),    // 43: box.v1.DockerLoginRequest
+	(*DockerLoginResponse)(nil),   // 44: box.v1.DockerLoginResponse
+	(*PruneRequest)(nil),          // 45: box.v1.PruneRequest
+	(*PruneResponse)(nil),         // 46: box.v1.PruneResponse
+	nil,                           // 47: box.v1.StatusResponse.ErrorsEntry
+	(*timestamppb.Timestamp)(nil), // 48: google.protobuf.Timestamp
 }
 var file_box_v1_box_proto_depIdxs = []int32{
-	1,  // 0: box.v1.Site.services:type_name -> box.v1.Service
-	47, // 1: box.v1.Site.deployed_at:type_name -> google.protobuf.Timestamp
-	47, // 2: box.v1.Site.checked_at:type_name -> google.protobuf.Timestamp
-	47, // 3: box.v1.StatusResponse.last_check:type_name -> google.protobuf.Timestamp
-	47, // 4: box.v1.StatusResponse.next_check:type_name -> google.protobuf.Timestamp
-	2,  // 5: box.v1.StatusResponse.sites:type_name -> box.v1.Site
-	46, // 6: box.v1.StatusResponse.errors:type_name -> box.v1.StatusResponse.ErrorsEntry
-	2,  // 7: box.v1.GetSiteResponse.site:type_name -> box.v1.Site
-	0,  // 8: box.v1.CreateSiteResponse.changes:type_name -> box.v1.Change
-	3,  // 9: box.v1.CreateSiteResponse.hook:type_name -> box.v1.Hook
-	0,  // 10: box.v1.DeployResponse.changes:type_name -> box.v1.Change
-	0,  // 11: box.v1.CheckResult.deployed:type_name -> box.v1.Change
-	0,  // 12: box.v1.CheckResult.waiting:type_name -> box.v1.Change
-	17, // 13: box.v1.CheckResponse.results:type_name -> box.v1.CheckResult
-	0,  // 14: box.v1.RollbackResponse.changes:type_name -> box.v1.Change
-	28, // 15: box.v1.GetConfigResponse.settings:type_name -> box.v1.Setting
-	3,  // 16: box.v1.GetHookResponse.hook:type_name -> box.v1.Hook
-	3,  // 17: box.v1.RotateHookResponse.hook:type_name -> box.v1.Hook
-	3,  // 18: box.v1.ListHooksResponse.hooks:type_name -> box.v1.Hook
-	4,  // 19: box.v1.BoxService.Version:input_type -> box.v1.VersionRequest
-	6,  // 20: box.v1.BoxService.Status:input_type -> box.v1.StatusRequest
-	8,  // 21: box.v1.BoxService.GetSite:input_type -> box.v1.GetSiteRequest
-	10, // 22: box.v1.BoxService.CreateSite:input_type -> box.v1.CreateSiteRequest
-	12, // 23: box.v1.BoxService.RemoveSite:input_type -> box.v1.RemoveSiteRequest
-	14, // 24: box.v1.BoxService.Deploy:input_type -> box.v1.DeployRequest
-	16, // 25: box.v1.BoxService.Check:input_type -> box.v1.CheckRequest
-	19, // 26: box.v1.BoxService.Rollback:input_type -> box.v1.RollbackRequest
-	21, // 27: box.v1.BoxService.Logs:input_type -> box.v1.LogsRequest
-	23, // 28: box.v1.BoxService.GetCompose:input_type -> box.v1.GetComposeRequest
-	25, // 29: box.v1.BoxService.ApplyCompose:input_type -> box.v1.ApplyComposeRequest
-	27, // 30: box.v1.BoxService.GetConfig:input_type -> box.v1.GetConfigRequest
-	30, // 31: box.v1.BoxService.SetConfig:input_type -> box.v1.SetConfigRequest
-	32, // 32: box.v1.BoxService.GetHook:input_type -> box.v1.GetHookRequest
-	34, // 33: box.v1.BoxService.RotateHook:input_type -> box.v1.RotateHookRequest
-	36, // 34: box.v1.BoxService.ListHooks:input_type -> box.v1.ListHooksRequest
-	38, // 35: box.v1.BoxService.RotateKey:input_type -> box.v1.RotateKeyRequest
-	40, // 36: box.v1.BoxService.DockerInfo:input_type -> box.v1.DockerInfoRequest
-	42, // 37: box.v1.BoxService.DockerLogin:input_type -> box.v1.DockerLoginRequest
-	44, // 38: box.v1.BoxService.Prune:input_type -> box.v1.PruneRequest
-	5,  // 39: box.v1.BoxService.Version:output_type -> box.v1.VersionResponse
-	7,  // 40: box.v1.BoxService.Status:output_type -> box.v1.StatusResponse
-	9,  // 41: box.v1.BoxService.GetSite:output_type -> box.v1.GetSiteResponse
-	11, // 42: box.v1.BoxService.CreateSite:output_type -> box.v1.CreateSiteResponse
-	13, // 43: box.v1.BoxService.RemoveSite:output_type -> box.v1.RemoveSiteResponse
-	15, // 44: box.v1.BoxService.Deploy:output_type -> box.v1.DeployResponse
-	18, // 45: box.v1.BoxService.Check:output_type -> box.v1.CheckResponse
-	20, // 46: box.v1.BoxService.Rollback:output_type -> box.v1.RollbackResponse
-	22, // 47: box.v1.BoxService.Logs:output_type -> box.v1.LogsResponse
-	24, // 48: box.v1.BoxService.GetCompose:output_type -> box.v1.GetComposeResponse
-	26, // 49: box.v1.BoxService.ApplyCompose:output_type -> box.v1.ApplyComposeResponse
-	29, // 50: box.v1.BoxService.GetConfig:output_type -> box.v1.GetConfigResponse
-	31, // 51: box.v1.BoxService.SetConfig:output_type -> box.v1.SetConfigResponse
-	33, // 52: box.v1.BoxService.GetHook:output_type -> box.v1.GetHookResponse
-	35, // 53: box.v1.BoxService.RotateHook:output_type -> box.v1.RotateHookResponse
-	37, // 54: box.v1.BoxService.ListHooks:output_type -> box.v1.ListHooksResponse
-	39, // 55: box.v1.BoxService.RotateKey:output_type -> box.v1.RotateKeyResponse
-	41, // 56: box.v1.BoxService.DockerInfo:output_type -> box.v1.DockerInfoResponse
-	43, // 57: box.v1.BoxService.DockerLogin:output_type -> box.v1.DockerLoginResponse
-	45, // 58: box.v1.BoxService.Prune:output_type -> box.v1.PruneResponse
-	39, // [39:59] is the sub-list for method output_type
-	19, // [19:39] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	2,  // 0: box.v1.Service.history:type_name -> box.v1.KeptImage
+	48, // 1: box.v1.KeptImage.deployed_at:type_name -> google.protobuf.Timestamp
+	1,  // 2: box.v1.Site.services:type_name -> box.v1.Service
+	48, // 3: box.v1.Site.deployed_at:type_name -> google.protobuf.Timestamp
+	48, // 4: box.v1.Site.checked_at:type_name -> google.protobuf.Timestamp
+	48, // 5: box.v1.StatusResponse.last_check:type_name -> google.protobuf.Timestamp
+	48, // 6: box.v1.StatusResponse.next_check:type_name -> google.protobuf.Timestamp
+	3,  // 7: box.v1.StatusResponse.sites:type_name -> box.v1.Site
+	47, // 8: box.v1.StatusResponse.errors:type_name -> box.v1.StatusResponse.ErrorsEntry
+	3,  // 9: box.v1.GetSiteResponse.site:type_name -> box.v1.Site
+	0,  // 10: box.v1.CreateSiteResponse.changes:type_name -> box.v1.Change
+	4,  // 11: box.v1.CreateSiteResponse.hook:type_name -> box.v1.Hook
+	0,  // 12: box.v1.DeployResponse.changes:type_name -> box.v1.Change
+	0,  // 13: box.v1.CheckResult.deployed:type_name -> box.v1.Change
+	0,  // 14: box.v1.CheckResult.waiting:type_name -> box.v1.Change
+	18, // 15: box.v1.CheckResponse.results:type_name -> box.v1.CheckResult
+	0,  // 16: box.v1.RollbackResponse.changes:type_name -> box.v1.Change
+	29, // 17: box.v1.GetConfigResponse.settings:type_name -> box.v1.Setting
+	4,  // 18: box.v1.GetHookResponse.hook:type_name -> box.v1.Hook
+	4,  // 19: box.v1.RotateHookResponse.hook:type_name -> box.v1.Hook
+	4,  // 20: box.v1.ListHooksResponse.hooks:type_name -> box.v1.Hook
+	5,  // 21: box.v1.BoxService.Version:input_type -> box.v1.VersionRequest
+	7,  // 22: box.v1.BoxService.Status:input_type -> box.v1.StatusRequest
+	9,  // 23: box.v1.BoxService.GetSite:input_type -> box.v1.GetSiteRequest
+	11, // 24: box.v1.BoxService.CreateSite:input_type -> box.v1.CreateSiteRequest
+	13, // 25: box.v1.BoxService.RemoveSite:input_type -> box.v1.RemoveSiteRequest
+	15, // 26: box.v1.BoxService.Deploy:input_type -> box.v1.DeployRequest
+	17, // 27: box.v1.BoxService.Check:input_type -> box.v1.CheckRequest
+	20, // 28: box.v1.BoxService.Rollback:input_type -> box.v1.RollbackRequest
+	22, // 29: box.v1.BoxService.Logs:input_type -> box.v1.LogsRequest
+	24, // 30: box.v1.BoxService.GetCompose:input_type -> box.v1.GetComposeRequest
+	26, // 31: box.v1.BoxService.ApplyCompose:input_type -> box.v1.ApplyComposeRequest
+	28, // 32: box.v1.BoxService.GetConfig:input_type -> box.v1.GetConfigRequest
+	31, // 33: box.v1.BoxService.SetConfig:input_type -> box.v1.SetConfigRequest
+	33, // 34: box.v1.BoxService.GetHook:input_type -> box.v1.GetHookRequest
+	35, // 35: box.v1.BoxService.RotateHook:input_type -> box.v1.RotateHookRequest
+	37, // 36: box.v1.BoxService.ListHooks:input_type -> box.v1.ListHooksRequest
+	39, // 37: box.v1.BoxService.RotateKey:input_type -> box.v1.RotateKeyRequest
+	41, // 38: box.v1.BoxService.DockerInfo:input_type -> box.v1.DockerInfoRequest
+	43, // 39: box.v1.BoxService.DockerLogin:input_type -> box.v1.DockerLoginRequest
+	45, // 40: box.v1.BoxService.Prune:input_type -> box.v1.PruneRequest
+	6,  // 41: box.v1.BoxService.Version:output_type -> box.v1.VersionResponse
+	8,  // 42: box.v1.BoxService.Status:output_type -> box.v1.StatusResponse
+	10, // 43: box.v1.BoxService.GetSite:output_type -> box.v1.GetSiteResponse
+	12, // 44: box.v1.BoxService.CreateSite:output_type -> box.v1.CreateSiteResponse
+	14, // 45: box.v1.BoxService.RemoveSite:output_type -> box.v1.RemoveSiteResponse
+	16, // 46: box.v1.BoxService.Deploy:output_type -> box.v1.DeployResponse
+	19, // 47: box.v1.BoxService.Check:output_type -> box.v1.CheckResponse
+	21, // 48: box.v1.BoxService.Rollback:output_type -> box.v1.RollbackResponse
+	23, // 49: box.v1.BoxService.Logs:output_type -> box.v1.LogsResponse
+	25, // 50: box.v1.BoxService.GetCompose:output_type -> box.v1.GetComposeResponse
+	27, // 51: box.v1.BoxService.ApplyCompose:output_type -> box.v1.ApplyComposeResponse
+	30, // 52: box.v1.BoxService.GetConfig:output_type -> box.v1.GetConfigResponse
+	32, // 53: box.v1.BoxService.SetConfig:output_type -> box.v1.SetConfigResponse
+	34, // 54: box.v1.BoxService.GetHook:output_type -> box.v1.GetHookResponse
+	36, // 55: box.v1.BoxService.RotateHook:output_type -> box.v1.RotateHookResponse
+	38, // 56: box.v1.BoxService.ListHooks:output_type -> box.v1.ListHooksResponse
+	40, // 57: box.v1.BoxService.RotateKey:output_type -> box.v1.RotateKeyResponse
+	42, // 58: box.v1.BoxService.DockerInfo:output_type -> box.v1.DockerInfoResponse
+	44, // 59: box.v1.BoxService.DockerLogin:output_type -> box.v1.DockerLoginResponse
+	46, // 60: box.v1.BoxService.Prune:output_type -> box.v1.PruneResponse
+	41, // [41:61] is the sub-list for method output_type
+	21, // [21:41] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_box_v1_box_proto_init() }
@@ -2777,7 +2940,7 @@ func file_box_v1_box_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_box_v1_box_proto_rawDesc), len(file_box_v1_box_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   47,
+			NumMessages:   48,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -109,9 +109,9 @@ services:
 	}
 
 	want := []Service{
-		{Name: "db", Image: "postgres:17", Policy: Pinned},
-		{Name: "web", Image: "ghcr.io/alfredr/thirty-phantom:latest", Policy: Auto},
-		{Name: "worker", Image: "ghcr.io/alfredr/worker:main", Policy: Manual},
+		{Name: "db", Image: "postgres:17", Policy: Pinned, Keep: -1, Budget: -1},
+		{Name: "web", Image: "ghcr.io/alfredr/thirty-phantom:latest", Policy: Auto, Keep: -1, Budget: -1},
+		{Name: "worker", Image: "ghcr.io/alfredr/worker:main", Policy: Manual, Keep: -1, Budget: -1},
 	}
 	if !slices.Equal(site.Services, want) {
 		t.Errorf("services = %+v", site.Services)
@@ -157,7 +157,7 @@ func TestScaffoldParses(t *testing.T) {
 		t.Fatalf("%v\n%s", err, data)
 	}
 
-	if !slices.Equal(site.Services, []Service{{Name: "app", Image: n.Image, Policy: Auto}}) {
+	if !slices.Equal(site.Services, []Service{{Name: "app", Image: n.Image, Policy: Auto, Keep: -1, Budget: -1}}) {
 		t.Errorf("services = %+v", site.Services)
 	}
 
@@ -363,5 +363,192 @@ func TestReclaimedFrom(t *testing.T) {
 		if got := reclaimedFrom(out); got != want {
 			t.Errorf("reclaimedFrom(%q) = %q, want %q", out, got, want)
 		}
+	}
+}
+
+func TestServiceLimits(t *testing.T) {
+	site, err := ParseSite("game", []byte(`
+x-box:
+  update: {web: auto}
+  keep: {web: 10, db: 0}
+  budget: {web: 500MB}
+services:
+  web: {image: "ghcr.io/alfredr/thirty-phantom:latest"}
+  db: {image: "postgres:17"}
+  worker: {image: "ghcr.io/alfredr/worker:main"}
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := Config{Keep: "5", Budget: "2GB"}
+	want := map[string]Limits{
+		"db":     {Keep: 0, Budget: 2_000_000_000},
+		"web":    {Keep: 10, Budget: 500_000_000},
+		"worker": {Keep: 5, Budget: 2_000_000_000},
+	}
+	for _, s := range site.Services {
+		if got := cfg.Limits(s); got != want[s.Name] {
+			t.Errorf("%s limits = %+v, want %+v", s.Name, got, want[s.Name])
+		}
+	}
+
+	if got := (Config{}).Limits(site.Services[2]); got != (Limits{Keep: DefaultKeep}) {
+		t.Errorf("default limits = %+v", got)
+	}
+
+	bad := map[string]string{
+		"negative keep":   "x-box: {keep: {app: -1}}\nservices: {app: {image: nginx}}\n",
+		"wordy keep":      "x-box: {keep: {app: lots}}\nservices: {app: {image: nginx}}\n",
+		"huge keep":       "x-box: {keep: {app: 1000}}\nservices: {app: {image: nginx}}\n",
+		"bad budget":      "x-box: {budget: {app: huge}}\nservices: {app: {image: nginx}}\n",
+		"unknown service": "x-box: {budget: {web: 1GB}}\nservices: {app: {image: nginx}}\n",
+	}
+	for name, src := range bad {
+		if _, err := ParseSite("s", []byte(src)); !IsInvalid(err) {
+			t.Errorf("%s: got %v, want an invalid error", name, err)
+		}
+	}
+}
+
+func TestLimitSettings(t *testing.T) {
+	var c Config
+	if v, _ := c.Get("keep"); v != "3" {
+		t.Errorf("keep default = %q", v)
+	}
+
+	if v, _ := c.Get("budget"); v != "off" {
+		t.Errorf("budget default = %q", v)
+	}
+
+	for _, kv := range [][2]string{{"keep", "-1"}, {"keep", "x"}, {"budget", "lots"}} {
+		if err := c.Set(kv[0], kv[1]); !IsInvalid(err) {
+			t.Errorf("Set(%q, %q) = %v", kv[0], kv[1], err)
+		}
+	}
+
+	for _, kv := range [][2]string{{"keep", "10"}, {"budget", "1.5GB"}, {"budget", "off"}} {
+		if err := c.Set(kv[0], kv[1]); err != nil {
+			t.Errorf("Set(%q, %q): %v", kv[0], kv[1], err)
+		}
+	}
+}
+
+func TestSizes(t *testing.T) {
+	cases := map[string]int64{
+		"0B": 0, "512": 512, "94.71MB": 94_710_000, "2GB": 2_000_000_000, "1.5 GB": 1_500_000_000,
+		"10kB": 10_000, "1KiB": 1024, "1GiB": 1 << 30, "3TB": 3_000_000_000_000,
+	}
+	for in, want := range cases {
+		if got, err := ParseSize(in); err != nil || got != want {
+			t.Errorf("ParseSize(%q) = %d, %v, want %d", in, got, err, want)
+		}
+	}
+
+	for _, in := range []string{"", "MB", "1XB", "-5MB"} {
+		if _, err := ParseSize(in); err == nil {
+			t.Errorf("ParseSize(%q) accepted", in)
+		}
+	}
+
+	formats := map[int64]string{0: "0B", 999: "999B", 94_710_000: "94.7MB", 2_000_000_000: "2.0GB"}
+	for in, want := range formats {
+		if got := FormatSize(in); got != want {
+			t.Errorf("FormatSize(%d) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestOverLimits(t *testing.T) {
+	hist := []Kept{{ID: "h1"}, {ID: "h2"}, {ID: "h3"}, {ID: "h4"}}
+	sizes := map[string]imageSize{
+		"cur": {Full: 100, Unique: 10},
+		"h1":  {Full: 100, Unique: 20},
+		"h2":  {Full: 100, Unique: 30},
+		"h3":  {Full: 100, Unique: 40},
+		"h4":  {Full: 100, Unique: 50},
+	}
+	ids := func(ks []Kept) []string {
+		var out []string
+		for _, k := range ks {
+			out = append(out, k.ID)
+		}
+
+		return out
+	}
+
+	cases := []struct {
+		name          string
+		lim           Limits
+		kept, dropped []string
+	}{
+		{"within", Limits{Keep: 10}, []string{"h1", "h2", "h3", "h4"}, nil},
+		{"keep", Limits{Keep: 2}, []string{"h1", "h2"}, []string{"h4", "h3"}},
+		{"keep none", Limits{Keep: 0}, nil, []string{"h4", "h3", "h2", "h1"}},
+		{"budget", Limits{Keep: 10, Budget: 160}, []string{"h1", "h2"}, []string{"h4", "h3"}},
+		{"budget below running", Limits{Keep: 10, Budget: 50}, nil, []string{"h4", "h3", "h2", "h1"}},
+		{"both", Limits{Keep: 3, Budget: 200}, []string{"h1", "h2", "h3"}, []string{"h4"}},
+	}
+	for _, c := range cases {
+		kept, dropped := overLimits("cur", hist, sizes, c.lim)
+		if !slices.Equal(ids(kept), c.kept) || !slices.Equal(ids(dropped), c.dropped) {
+			t.Errorf("%s: kept %v dropped %v, want %v and %v", c.name, ids(kept), ids(dropped), c.kept, c.dropped)
+		}
+	}
+
+	if len(hist) != 4 {
+		t.Error("overLimits changed its input")
+	}
+}
+
+func TestPickTarget(t *testing.T) {
+	hist := []Kept{{ID: "sha256:aaaa1111"}, {ID: "sha256:bbbb2222"}, {ID: "sha256:cccc3333"}}
+	cases := map[string]string{
+		"": "sha256:aaaa1111", "1": "sha256:aaaa1111", "3": "sha256:cccc3333",
+		"bbbb": "sha256:bbbb2222", "sha256:cccc": "sha256:cccc3333", "BBBB2": "sha256:bbbb2222",
+	}
+	for to, want := range cases {
+		if k, ok := pickTarget(hist, to); !ok || k.ID != want {
+			t.Errorf("pickTarget(%q) = %v, %v, want %s", to, k, ok, want)
+		}
+	}
+
+	for _, to := range []string{"0", "4", "-1", "abc", "dddd"} {
+		if k, ok := pickTarget(hist, to); ok {
+			t.Errorf("pickTarget(%q) = %v", to, k)
+		}
+	}
+
+	if _, ok := pickTarget(nil, ""); ok {
+		t.Error("an empty history has no target")
+	}
+}
+
+func TestAssess(t *testing.T) {
+	small := []Usage{{Site: "blog", Service: "app", Kept: 50, Running: 40, Worst: 200}}
+	if c := assess(small, 1000); len(c.Warnings) != 0 || c.Kept != 50 || c.Worst != 200 {
+		t.Errorf("small = %+v", c)
+	}
+
+	big := []Usage{
+		{Site: "game", Service: "app", Kept: 100, Running: 100, Worst: 900},
+		{Site: "blog", Service: "app", Kept: 50, Running: 40, Worst: 400},
+	}
+	c := assess(big, 1000)
+	if len(c.Warnings) != 1 || !strings.Contains(c.Warnings[0], "could reach 1.3kB") || !strings.Contains(c.Warnings[0], "game/app up to 900B, blog/app") {
+		t.Errorf("big = %+v", c.Warnings)
+	}
+
+	tight := []Usage{{Site: "game", Service: "app", Kept: 100, Running: 100, Budget: 60, Worst: 160}}
+	if c := assess(tight, 10_000); len(c.Warnings) != 1 || !strings.Contains(c.Warnings[0], "keeps no history") {
+		t.Errorf("tight = %+v", c.Warnings)
+	}
+
+	if w := serviceWorst(100, Limits{Keep: 3}); w != 500 {
+		t.Errorf("worst with keep 3 = %d", w)
+	}
+
+	if w := serviceWorst(100, Limits{Keep: 3, Budget: 250}); w != 350 {
+		t.Errorf("worst with a budget = %d", w)
 	}
 }

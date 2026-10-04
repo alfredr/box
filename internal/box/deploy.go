@@ -132,7 +132,7 @@ func deploy(ctx context.Context, cfg Config, site Site, svcs []Service, partial,
 		return nil, errors.New(msg)
 	}
 
-	changes := settle(ctx, site, svcs, before, after, &rec, true)
+	changes := settle(ctx, cfg, site, svcs, before, after, &rec, true)
 	if err := rec.save(site.Name); err != nil {
 		return changes, err
 	}
@@ -190,10 +190,9 @@ func pinRunning(ctx context.Context, site string, svcs []Service, running map[st
 	return nil
 }
 
-// Stable tags retain current and previous images after a pull moves the original tag. These
+// Stable tags retain current and earlier images after a pull moves the original tag. These
 // names also allow restoration when Docker cannot resolve an untagged image by ID.
 func keepRef(site, service string) string { return "box-keep/" + site + ":" + strings.ToLower(service) }
-func prevRef(site, service string) string { return keepRef(site, service) + "-previous" }
 
 // keptSources uses a retained tag only when it still refers to the requested image ID.
 // Otherwise it falls back to the ID, allowing for changes made outside box.
@@ -214,10 +213,9 @@ func keptSources(ctx context.Context, site string, svcs []Service, ids map[strin
 	return sources
 }
 
-// settle records a successful operation and retains images for rollback. It updates Previous
-// only for services whose image changed. When pulled is true, it also clears their pending and
-// rejected records.
-func settle(ctx context.Context, site Site, svcs []Service, before, after map[string]string, rec *Record, pulled bool) []Change {
+// settle records a successful operation, moves replaced images into history, and applies the
+// keep and budget limits. When pulled is true, it also clears pending and rejected records.
+func settle(ctx context.Context, cfg Config, site Site, svcs []Service, before, after map[string]string, rec *Record, pulled bool) []Change {
 	var changes []Change
 	for _, s := range svcs {
 		from, to := before[s.Name], after[s.Name]
@@ -239,33 +237,30 @@ func settle(ctx context.Context, site Site, svcs []Service, before, after map[st
 			continue
 		}
 
-		if from != "" {
-			put(&rec.Previous, s.Name, from)
-		}
-
-		remember(ctx, site.Name, s, from, to)
+		remember(ctx, site.Name, s, from, to, rec)
 		changes = append(changes, Change{Service: s.Name, From: from, To: to})
 	}
 
+	trimSite(ctx, cfg, site, rec)
 	rec.DeployedAt = time.Now()
 	rec.Result = "ok"
 	return changes
 }
 
-// remember tags the current image and retains its predecessor for rollback. Replacing the
-// previous tag removes only that tag, without forcing image deletion. Tagging failures are
-// logged and do not fail the deployment.
-func remember(ctx context.Context, site string, s Service, from, to string) {
-	cur, prev := keepRef(site, s.Name), prevRef(site, s.Name)
+func remember(ctx context.Context, site string, s Service, from, to string, rec *Record) {
+	cur := keepRef(site, s.Name)
+	wasKept := slices.ContainsFunc(rec.History[s.Name], func(k Kept) bool { return k.ID == to })
+	hist := slices.DeleteFunc(slices.Clone(rec.History[s.Name]), func(k Kept) bool { return k.ID == from || k.ID == to })
 	if from != "" {
 		src := cur
 		if imageID(ctx, cur) != from {
 			src = from
 		}
 
-		docker(ctx, "image", "rm", prev)
-		if _, err := docker(ctx, "tag", src, prev); err != nil {
+		if _, err := docker(ctx, "tag", src, histRef(site, s.Name, from)); err != nil {
 			slog.Warn("keeping the previous image", "site", site, "service", s.Name, "err", err)
+		} else {
+			hist = append([]Kept{{ID: from, DeployedAt: rec.Since[s.Name]}}, hist...)
 		}
 	}
 
@@ -274,26 +269,24 @@ func remember(ctx context.Context, site string, s Service, from, to string) {
 			slog.Warn("keeping the current image", "site", site, "service", s.Name, "err", err)
 		}
 	}
-}
 
-// swapKept exchanges the current and previous image tags after rollback. The temporary tag
-// keeps the current image addressable during the exchange.
-func swapKept(ctx context.Context, site, service string) {
-	cur, prev, tmp := keepRef(site, service), prevRef(site, service), keepRef(site, service)+"-swap"
-	for _, step := range [][2]string{{cur, tmp}, {prev, cur}, {tmp, prev}} {
-		if _, err := docker(ctx, "tag", step[0], step[1]); err != nil {
-			slog.Warn("swapping kept images", "site", site, "service", service, "err", err)
-			break
-		}
+	if wasKept {
+		docker(ctx, "image", "rm", histRef(site, s.Name, to))
 	}
 
-	docker(ctx, "image", "rm", tmp)
+	setHistory(rec, s.Name, hist)
+	if rec.Since == nil {
+		rec.Since = map[string]time.Time{}
+	}
+
+	rec.Since[s.Name] = time.Now()
 }
 
-// Rollback restores services whose recorded previous image differs from their current image. It
-// records the replaced images as rejected so checks skip them. It does not restore Compose
-// configuration or volume data.
-func Rollback(ctx context.Context, cfg Config, name string) ([]Change, error) {
+// Rollback restores services to an image from their history: the most recent one when target
+// is empty, the nth when it is a number, or the one whose ID starts with target. The images it
+// replaces join the history and are recorded as rejected so checks skip them. It does not
+// restore Compose configuration or volume data.
+func Rollback(ctx context.Context, cfg Config, name, target string) ([]Change, error) {
 	defer tidy(ctx)
 
 	unlock, err := lockSite(name)
@@ -319,17 +312,29 @@ func Rollback(ctx context.Context, cfg Config, name string) ([]Change, error) {
 	}
 
 	var svcs []Service
+	sources := map[string]string{}
 	for _, s := range site.Services {
-		if prev := rec.Previous[s.Name]; prev != "" && prev != before[s.Name] {
-			svcs = append(svcs, s)
+		k, ok := pickTarget(rec.History[s.Name], target)
+		if !ok || k.ID == before[s.Name] {
+			continue
+		}
+
+		svcs = append(svcs, s)
+		sources[s.Name] = k.ID
+		if ref := histRef(name, s.Name, k.ID); imageID(ctx, ref) == k.ID {
+			sources[s.Name] = ref
 		}
 	}
 
 	if len(svcs) == 0 {
-		return nil, fmt.Errorf("%s has no earlier images to go back to", name)
+		if target == "" {
+			return nil, Invalid(fmt.Errorf("%s has no earlier images to go back to", name))
+		}
+
+		return nil, Invalid(fmt.Errorf("%s has no kept image matching %q (box status %s lists them)", name, target, name))
 	}
 
-	if err := restore(ctx, site, svcs, keptSources(ctx, name, svcs, rec.Previous, prevRef)); err != nil {
+	if err := restore(ctx, site, svcs, sources); err != nil {
 		rec.Result = "rollback failed"
 		if err := rec.save(name); err != nil {
 			slog.Error("saving record", "site", name, "err", err)
@@ -351,13 +356,14 @@ func Rollback(ctx context.Context, cfg Config, name string) ([]Change, error) {
 		delete(rec.Pending, s.Name)
 
 		if from != "" && from != to {
-			put(&rec.Previous, s.Name, from)
 			release(ctx, name, s.Name)
 			put(&rec.Rejected, s.Name, from)
-			swapKept(ctx, name, s.Name)
+			remember(ctx, name, s, from, to, &rec)
 			changes = append(changes, Change{Service: s.Name, From: from, To: to})
 		}
 	}
+
+	trimSite(ctx, cfg, site, &rec)
 
 	rec.Result = "rolled back"
 	rec.DeployedAt = time.Now()
@@ -626,7 +632,7 @@ func Apply(ctx context.Context, cfg Config, name string, compose []byte) error {
 		return err
 	}
 
-	settle(ctx, site, site.Services, before, after, &rec, false)
+	settle(ctx, cfg, site, site.Services, before, after, &rec, false)
 	return rec.save(name)
 }
 

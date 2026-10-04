@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -292,6 +293,59 @@ func TestServer(t *testing.T) {
 
 	if out := docker(t, "image", "inspect", "--format", "{{.Id}}", "box-keep/"+site+":app-rejected"); out == v3 || out == "" {
 		t.Fatalf("rejected image tag = %q", out)
+	}
+
+	history := func() []string {
+		t.Helper()
+		out, err := c.GetSite(ctx, &boxv1.GetSiteRequest{Site: site})
+		must(err)
+		var ids []string
+		for _, k := range out.Site.Services[0].History {
+			ids = append(ids, k.Id)
+		}
+
+		return ids
+	}
+
+	if h := history(); !slices.Equal(h, []string{v1, v2}) {
+		t.Fatalf("history after v3 = %v, want v1 then v2", h)
+	}
+
+	_, err = c.Rollback(ctx, &boxv1.RollbackRequest{Site: site, To: box.ShortID(v1)[:6]})
+	must(err)
+	if running() != v1 || !slices.Equal(history(), []string{v3, v2}) {
+		t.Fatalf("after rollback to v1: running %s, history %v", running(), history())
+	}
+
+	_, err = c.Rollback(ctx, &boxv1.RollbackRequest{Site: site, To: "1"})
+	must(err)
+	if running() != v3 || !slices.Equal(history(), []string{v1, v2}) {
+		t.Fatalf("after rolling forward: running %s, history %v", running(), history())
+	}
+
+	_, err = c.Rollback(ctx, &boxv1.RollbackRequest{Site: site, To: "9"})
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("rollback to a missing image: %v", err)
+	}
+
+	compose, err = c.GetCompose(ctx, &boxv1.GetComposeRequest{Site: site})
+	must(err)
+	limited := strings.Replace(compose.Text, "    app: manual\n", "    app: manual\n  keep:\n    app: 1\n", 1)
+	_, err = c.ApplyCompose(ctx, &boxv1.ApplyComposeRequest{Site: site, Text: limited})
+	must(err)
+	if h := history(); !slices.Equal(h, []string{v1}) || running() != v3 {
+		t.Fatalf("after keep 1: history %v, running %s", h, running())
+	}
+
+	if out := docker(t, "images", "--filter", "reference=box-keep/"+site+":app-"+box.ShortID(v2), "--format", "{{.ID}}"); out != "" {
+		t.Fatalf("the dropped image is still tagged: %s", out)
+	}
+
+	huge := strings.Replace(limited, "  keep:\n", "  budget:\n    app: 100TB\n  keep:\n", 1)
+	applied, err := c.ApplyCompose(ctx, &boxv1.ApplyComposeRequest{Site: site, Text: huge})
+	must(err)
+	if len(applied.Warnings) == 0 || !strings.Contains(applied.Warnings[0], "could reach") {
+		t.Fatalf("warnings for a 100TB budget = %v", applied.Warnings)
 	}
 
 	logs, err := c.Logs(ctx, &boxv1.LogsRequest{Site: site, Tail: 5})

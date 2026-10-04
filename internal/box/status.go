@@ -13,9 +13,11 @@ type ServiceStatus struct {
 	State string
 	// Running is the image ID used to create the inspected container, even if that container is
 	// stopped.
-	Running  string
-	Previous string
-	Pending  string
+	Running   string
+	Pending   string
+	History   []Kept
+	Limits    Limits
+	KeptBytes int64
 }
 
 // SiteStatus combines a site definition, its saved record, and inspected service states.
@@ -43,14 +45,23 @@ func Status(ctx context.Context, name string) (SiteStatus, error) {
 		return SiteStatus{}, err
 	}
 
+	cfg, err := LoadConfig()
+	if err != nil {
+		return SiteStatus{}, err
+	}
+
+	sizes, _ := imageSizes(ctx)
+
 	out := SiteStatus{Site: site, Record: rec}
 	for _, s := range site.Services {
 		ss := ServiceStatus{
-			Service:  s,
-			State:    "not created",
-			Running:  images[s.Name],
-			Previous: rec.Previous[s.Name],
-			Pending:  rec.Pending[s.Name],
+			Service:   s,
+			State:     "not created",
+			Running:   images[s.Name],
+			Pending:   rec.Pending[s.Name],
+			History:   rec.History[s.Name],
+			Limits:    cfg.Limits(s),
+			KeptBytes: keptBytes(rec.Images[s.Name], rec.History[s.Name], sizes),
 		}
 		for _, c := range cs {
 			if c.Service == s.Name {
