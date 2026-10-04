@@ -24,8 +24,8 @@ type Record struct {
 	CheckError string `json:"check_error,omitempty"`
 	// Images maps services to the image IDs recorded after successful operations.
 	Images map[string]string `json:"images,omitempty"`
-	// History holds each service's earlier images, newest first, within its keep and budget
-	// limits.
+	// History holds each service's earlier images, newest first. Limits are applied after
+	// successful operations and explicit pruning, so a changed limit may not yet be reflected.
 	History map[string][]Kept `json:"history,omitempty"`
 	// Since records when each service's current image was deployed.
 	Since map[string]time.Time `json:"since,omitempty"`
@@ -39,7 +39,8 @@ type Record struct {
 func recordPath(name string) string { return filepath.Join(stateDir(), name+".json") }
 
 // LoadRecord reads the saved state for name. A missing file returns a zero Record without an
-// error. The caller must validate name.
+// error. It imports the older previous-image format in memory, preserving its tag references.
+// The next save writes the history format. The caller must validate name.
 func LoadRecord(name string) (Record, error) {
 	var r Record
 	b, err := os.ReadFile(recordPath(name))
@@ -51,8 +52,21 @@ func LoadRecord(name string) (Record, error) {
 		return r, err
 	}
 
-	if err := json.Unmarshal(b, &r); err != nil {
+	var stored struct {
+		*Record
+		Previous map[string]string `json:"previous"`
+	}
+	stored.Record = &r
+	if err := json.Unmarshal(b, &stored); err != nil {
 		return r, fmt.Errorf("%s: %w", recordPath(name), err)
+	}
+
+	for service, id := range stored.Previous {
+		// A history entry, including an explicitly empty list, takes precedence over the old
+		// field if a record contains both formats.
+		if _, ok := r.History[service]; !ok && id != "" && id != r.Images[service] {
+			setHistory(&r, service, []Kept{{ID: id, Legacy: true}})
+		}
 	}
 
 	return r, nil

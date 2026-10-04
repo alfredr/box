@@ -21,7 +21,8 @@ const (
 	// ServerListen is the default loopback address forwarded by Caddy to the command API.
 	ServerListen = "127.0.0.1:9311"
 	// ServerName is the container name used by setup and server maintenance commands.
-	ServerName = "box"
+	ServerName      = "box"
+	imageStoreMount = "/box-image-store"
 )
 
 // Server defines the box container and the host resources it uses.
@@ -37,6 +38,10 @@ type Server struct {
 	// /etc/docker, while installation uses a separate writable mount. An empty value omits
 	// these mounts and disables daemon configuration during installation.
 	DaemonDir string
+	// ImageStore is the daemon host's image storage directory. Installation mounts it
+	// read-only to measure free space. An empty value preserves an existing mount or detects
+	// the path for classic filesystem drivers. Containerd storage requires an explicit path.
+	ImageStore string
 	// Publish uses bridge networking and publishes the Listen port on a free host loopback
 	// port. Otherwise the container uses host networking. Local Docker Desktop tests use this
 	// to reach the server outside the VM.
@@ -81,6 +86,11 @@ func (s Server) container() engine.Container {
 	}
 	if s.DaemonDir != "" {
 		c.Binds = append(c.Binds, s.DaemonDir+":/etc/docker:ro")
+	}
+
+	if s.ImageStore != "" {
+		c.ReadOnlyBinds = map[string]string{imageStoreMount: s.ImageStore}
+		c.Env = append(c.Env, "BOX_IMAGE_STORE="+imageStoreMount)
 	}
 
 	if s.Publish {
@@ -261,10 +271,46 @@ func mergeDaemon(ctx context.Context, eng *engine.Client, helper, dir string, s 
 
 // replace stops and removes the existing container before creating its replacement. It waits up
 // to two minutes for health status, and does not restore the old container if replacement
-// fails.
+// fails. The image-storage path is preserved or detected and validated before the old server
+// is stopped.
 func replace(ctx context.Context, eng *engine.Client, s Server) error {
+	old, err := eng.Inspect(ctx, s.Name)
+	if err != nil && !engine.IsNotFound(err) {
+		return err
+	}
+
+	exists := err == nil
+	if s.ImageStore == "" {
+		s.ImageStore = old.Mounts[imageStoreMount]
+	}
+
+	if s.ImageStore == "" {
+		s.ImageStore, err = eng.ImageStore(ctx)
+		if err != nil {
+			return err
+		}
+	}
+
+	if s.ImageStore != "" {
+		if !path.IsAbs(s.ImageStore) {
+			return fmt.Errorf("image storage must be an absolute host path: %q", s.ImageStore)
+		}
+
+		// Validate the host path through Docker before stopping a working server. Structured
+		// bind mounts reject missing paths rather than creating an empty directory.
+		probe, err := eng.Create(ctx, engine.Container{
+			Name: s.Name + "-storage-" + box.NewSecret()[:8], Image: s.Image,
+			ReadOnlyBinds: map[string]string{imageStoreMount: s.ImageStore},
+		})
+		if err != nil {
+			return fmt.Errorf("mounting image storage: %w", err)
+		}
+
+		defer eng.Remove(context.WithoutCancel(ctx), probe, true)
+	}
+
 	spec := s.container()
-	if _, err := eng.Inspect(ctx, s.Name); err == nil {
+	if exists {
 		if err := eng.Stop(ctx, s.Name, spec.StopTimeout); err != nil {
 			return err
 		}
@@ -272,8 +318,6 @@ func replace(ctx context.Context, eng *engine.Client, s Server) error {
 		if err := eng.Remove(ctx, s.Name, true); err != nil {
 			return err
 		}
-	} else if !engine.IsNotFound(err) {
-		return err
 	}
 
 	id, err := eng.Create(ctx, spec)

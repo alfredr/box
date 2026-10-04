@@ -133,6 +133,32 @@ func (c *Client) Ping(ctx context.Context) error {
 	return c.call(ctx, http.MethodGet, "/_ping", nil, nil, nil)
 }
 
+// ImageStore returns the daemon's storage directory for filesystem storage drivers. It returns
+// an empty path for containerd and other backends whose image filesystem the Engine API does
+// not identify. In particular, DockerRootDir need not contain containerd image data.
+func (c *Client) ImageStore(ctx context.Context) (string, error) {
+	var info struct {
+		Driver, DockerRootDir string
+		DriverStatus          [][2]string
+	}
+	if err := c.call(ctx, http.MethodGet, "/info", nil, nil, &info); err != nil {
+		return "", err
+	}
+
+	for _, pair := range info.DriverStatus {
+		if pair[0] == "driver-type" && strings.HasPrefix(pair[1], "io.containerd.") {
+			return "", nil
+		}
+	}
+
+	switch info.Driver {
+	case "overlay2", "aufs", "vfs", "btrfs", "zfs":
+		return info.DockerRootDir, nil
+	default:
+		return "", nil
+	}
+}
+
 // Version holds the daemon release and its advertised maximum Engine API version.
 type Version struct {
 	Version    string
@@ -262,6 +288,9 @@ type Container struct {
 	Labels map[string]string
 	// Binds contains Docker bind specifications with paths resolved on the daemon host.
 	Binds []string
+	// ReadOnlyBinds maps container destinations to existing host directories. Unlike Binds,
+	// these mounts fail if the source is missing instead of creating a host directory.
+	ReadOnlyBinds map[string]string
 	// NetworkMode selects Docker networking. "host" shares the host network, and an empty value
 	// uses the daemon default.
 	NetworkMode string
@@ -279,8 +308,13 @@ type Container struct {
 // to the daemon.
 func (c *Client) Create(ctx context.Context, spec Container) (string, error) {
 	type portBinding struct{ HostIp, HostPort string }
+	type mount struct {
+		Type, Source, Target string
+		ReadOnly             bool
+	}
 	type hostConfig struct {
 		Binds         []string                 `json:",omitempty"`
+		Mounts        []mount                  `json:",omitempty"`
 		NetworkMode   string                   `json:",omitempty"`
 		PortBindings  map[string][]portBinding `json:",omitempty"`
 		RestartPolicy struct{ Name string }    `json:",omitempty"`
@@ -301,6 +335,9 @@ func (c *Client) Create(ctx context.Context, spec Container) (string, error) {
 	}{Image: spec.Image, Cmd: spec.Cmd, Env: spec.Env, Labels: spec.Labels}
 
 	body.HostConfig.Binds = spec.Binds
+	for target, source := range spec.ReadOnlyBinds {
+		body.HostConfig.Mounts = append(body.HostConfig.Mounts, mount{Type: "bind", Source: source, Target: target, ReadOnly: true})
+	}
 	body.HostConfig.NetworkMode = spec.NetworkMode
 	body.HostConfig.RestartPolicy.Name = spec.RestartPolicy
 	for port, addr := range spec.Publish {
@@ -356,9 +393,11 @@ type State struct {
 	// Ports maps container port/protocol values to IPv4 host addresses. When a port has
 	// multiple IPv4 bindings, Inspect retains the last one.
 	Ports map[string]string
+	// Mounts maps bind-mount destinations to their source paths on the daemon host.
+	Mounts map[string]string
 }
 
-// Inspect reads container state and published IPv4 port bindings by container name or ID.
+// Inspect reads container state, published IPv4 port bindings, and bind mounts by name or ID.
 func (c *Client) Inspect(ctx context.Context, id string) (State, error) {
 	var out struct {
 		Id     string
@@ -370,6 +409,7 @@ func (c *Client) Inspect(ctx context.Context, id string) (State, error) {
 		NetworkSettings struct {
 			Ports map[string][]struct{ HostIp, HostPort string }
 		}
+		Mounts []struct{ Type, Source, Destination string }
 	}
 	if err := c.call(ctx, http.MethodGet, "/containers/"+id+"/json", nil, nil, &out); err != nil {
 		return State{}, err
@@ -387,6 +427,13 @@ func (c *Client) Inspect(ctx context.Context, id string) (State, error) {
 			if !strings.Contains(b.HostIp, ":") {
 				st.Ports[port] = net.JoinHostPort(b.HostIp, b.HostPort)
 			}
+		}
+	}
+
+	st.Mounts = map[string]string{}
+	for _, mount := range out.Mounts {
+		if mount.Type == "bind" {
+			st.Mounts[mount.Destination] = mount.Source
 		}
 	}
 

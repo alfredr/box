@@ -8,6 +8,7 @@ package e2e
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net"
 	"net/http"
 	"os"
@@ -247,10 +248,31 @@ func TestServer(t *testing.T) {
 		t.Fatalf("check after v2 = %v, running %s", r, running())
 	}
 
+	// Recreate a record and tag from the release that retained only one previous image. A
+	// check must persist the migrated record without making that image unavailable.
+	legacyTag := "box-keep/" + site + ":app-previous"
+	docker(t, "tag", "box-keep/"+site+":app-"+box.ShortID(v1), legacyTag)
+	docker(t, "image", "rm", "box-keep/"+site+":app-"+box.ShortID(v1))
+	record, err := eng.GetFile(ctx, serverName, filepath.Join(root, "state", site+".json"))
+	must(err)
+	var oldRecord map[string]json.RawMessage
+	must(json.Unmarshal(record, &oldRecord))
+	delete(oldRecord, "history")
+	delete(oldRecord, "since")
+	oldRecord["previous"], err = json.Marshal(map[string]string{"app": v1})
+	must(err)
+	record, err = json.Marshal(oldRecord)
+	must(err)
+	must(eng.PutFiles(ctx, serverName, filepath.Join(root, "state"), []engine.File{{Name: site + ".json", Data: record, Mode: 0o644}}))
+	check()
+
 	_, err = c.Rollback(ctx, &boxv1.RollbackRequest{Site: site})
 	must(err)
 	if running() != v1 {
 		t.Fatalf("after rollback running %s, want v1 %s", running(), v1)
+	}
+	if out := docker(t, "images", "--filter", "reference="+legacyTag, "--format", "{{.ID}}"); out != "" {
+		t.Fatalf("legacy rollback tag survived its promotion: %s", out)
 	}
 
 	if r := check(); len(r.Deployed)+len(r.Waiting) != 0 || running() != v1 {
@@ -311,7 +333,7 @@ func TestServer(t *testing.T) {
 		t.Fatalf("history after v3 = %v, want v1 then v2", h)
 	}
 
-	_, err = c.Rollback(ctx, &boxv1.RollbackRequest{Site: site, To: box.ShortID(v1)[:6]})
+	_, err = c.Rollback(ctx, &boxv1.RollbackRequest{Site: site, To: "sha256:" + box.ShortID(v1)[:6]})
 	must(err)
 	if running() != v1 || !slices.Equal(history(), []string{v3, v2}) {
 		t.Fatalf("after rollback to v1: running %s, history %v", running(), history())
@@ -344,8 +366,30 @@ func TestServer(t *testing.T) {
 	huge := strings.Replace(limited, "  keep:\n", "  budget:\n    app: 100TB\n  keep:\n", 1)
 	applied, err := c.ApplyCompose(ctx, &boxv1.ApplyComposeRequest{Site: site, Text: huge})
 	must(err)
-	if len(applied.Warnings) == 0 || !strings.Contains(applied.Warnings[0], "could reach") {
+	status, err := c.Status(ctx, &boxv1.StatusRequest{})
+	must(err)
+	warning := "could reach"
+	if status.FreeBytes < 0 {
+		warning = "couldn't check free space"
+	}
+	if len(applied.Warnings) == 0 || !strings.Contains(strings.Join(applied.Warnings, "\n"), warning) {
 		t.Fatalf("warnings for a 100TB budget = %v", applied.Warnings)
+	}
+
+	// Enforce a byte budget against actual Docker image sizes, including images that share
+	// nearly all their layers. The current image must remain even when it exceeds the budget.
+	tiny := strings.Replace(huge, "app: 100TB", "app: 1B", 1)
+	_, err = c.ApplyCompose(ctx, &boxv1.ApplyComposeRequest{Site: site, Text: tiny})
+	must(err)
+	if len(history()) != 0 || running() != v3 {
+		t.Fatalf("after a 1B budget: history %v, running %s", history(), running())
+	}
+	siteState, err := c.GetSite(ctx, &boxv1.GetSiteRequest{Site: site})
+	must(err)
+	imageBytes, err := strconv.ParseInt(docker(t, "image", "inspect", "--format", "{{.Size}}", v3), 10, 64)
+	must(err)
+	if got := siteState.Site.Services[0].KeptBytes; imageBytes <= 0 || got != imageBytes {
+		t.Fatalf("retained size = %d, want current image size %d", got, imageBytes)
 	}
 
 	logs, err := c.Logs(ctx, &boxv1.LogsRequest{Site: site, Tail: 5})

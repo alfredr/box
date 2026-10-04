@@ -26,9 +26,9 @@ type Host struct {
 
 const remoteSocket = "/var/run/docker.sock"
 
-// Run executes command in the remote login shell with local stdin, stdout, and stderr attached,
-// and with a pseudo-terminal when stdin is a terminal, so sudo can prompt for a password. The
-// command is passed without additional shell quoting.
+// Run executes command in the remote login shell with local stdin, stdout, and stderr attached.
+// It requests a pseudo-terminal only when local stdin is a terminal, allowing sudo to prompt
+// for a password. The command is passed without additional shell quoting.
 func (h Host) Run(ctx context.Context, command string) error {
 	args := []string{h.Target, command}
 	if term.IsTerminal(int(os.Stdin.Fd())) {

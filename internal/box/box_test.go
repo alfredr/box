@@ -461,13 +461,7 @@ func TestSizes(t *testing.T) {
 
 func TestOverLimits(t *testing.T) {
 	hist := []Kept{{ID: "h1"}, {ID: "h2"}, {ID: "h3"}, {ID: "h4"}}
-	sizes := map[string]imageSize{
-		"cur": {Full: 100, Unique: 10},
-		"h1":  {Full: 100, Unique: 20},
-		"h2":  {Full: 100, Unique: 30},
-		"h3":  {Full: 100, Unique: 40},
-		"h4":  {Full: 100, Unique: 50},
-	}
+	sizes := map[string]int64{"cur": 100, "h1": 20, "h2": 30, "h3": 40, "h4": 50}
 	ids := func(ks []Kept) []string {
 		var out []string
 		for _, k := range ks {
@@ -508,18 +502,18 @@ func TestPickTarget(t *testing.T) {
 		"bbbb": "sha256:bbbb2222", "sha256:cccc": "sha256:cccc3333", "BBBB2": "sha256:bbbb2222",
 	}
 	for to, want := range cases {
-		if k, ok := pickTarget(hist, to); !ok || k.ID != want {
+		if k, ok, err := pickTarget(hist, to); err != nil || !ok || k.ID != want {
 			t.Errorf("pickTarget(%q) = %v, %v, want %s", to, k, ok, want)
 		}
 	}
 
 	for _, to := range []string{"0", "4", "-1", "abc", "dddd"} {
-		if k, ok := pickTarget(hist, to); ok {
+		if k, ok, err := pickTarget(hist, to); ok || err != nil {
 			t.Errorf("pickTarget(%q) = %v", to, k)
 		}
 	}
 
-	if _, ok := pickTarget(nil, ""); ok {
+	if _, ok, err := pickTarget(nil, ""); ok || err != nil {
 		t.Error("an empty history has no target")
 	}
 }

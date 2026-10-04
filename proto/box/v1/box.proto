@@ -24,10 +24,11 @@ service BoxService {
   // Deploy pulls eligible images and starts the requested services. Failed startup triggers an
   // attempt to restore earlier images. Work continues after a client disconnect.
   rpc Deploy(DeployRequest) returns (DeployResponse);
-  // Check pulls non-pinned images and applies each service update policy. Checks skip rejected
-  // images and do not deploy services without containers.
+  // Check pulls non-pinned images and applies each service update policy. A first automatic
+  // deployment starts the whole site. Later checks skip rejected images and services without
+  // containers.
   rpc Check(CheckRequest) returns (CheckResponse);
-  // Rollback restores recorded previous images and excludes the replaced images from subsequent
+  // Rollback restores selected history images and excludes the replaced images from subsequent
   // checks. It does not restore configuration or volume data.
   rpc Rollback(RollbackRequest) returns (RollbackResponse);
   // Logs streams container output. Client cancellation ends the stream.
@@ -56,6 +57,8 @@ service BoxService {
   rpc DockerInfo(DockerInfoRequest) returns (DockerInfoResponse);
   // DockerLogin saves registry credentials through the server Docker CLI for site image pulls.
   rpc DockerLogin(DockerLoginRequest) returns (DockerLoginResponse);
+  // Prune applies retention limits to all sites and prunes unused dangling images across the
+  // Docker daemon, including images unrelated to box. It runs even when BOX_PRUNE is off.
   rpc Prune(PruneRequest) returns (PruneResponse);
 }
 // Change records the image IDs before and after an operation on one service.
@@ -81,14 +84,22 @@ message Service {
   string pending = 7;
   // Rejected is an image ID skipped by checks after a failed deployment or rollback.
   string rejected = 8;
+  // History lists retained earlier images, newest first.
   repeated KeptImage history = 9;
+  // Keep is the effective limit on the number of earlier images, excluding the current image.
   int32 keep = 10;
+  // Budget is the effective byte limit for the current image and history. Zero disables it.
   int64 budget = 11;
+  // KeptBytes estimates storage for the recorded current image and history, excluding any
+  // rejected image. It is zero when image sizes could not be read.
   int64 kept_bytes = 12;
 }
 
+// KeptImage identifies an earlier service image retained for rollback.
 message KeptImage {
+  // Id is the full Docker image ID, including its algorithm prefix.
   string id = 1;
+  // DeployedAt records when this image most recently became current. It is absent if unknown.
   google.protobuf.Timestamp deployed_at = 2;
 }
 // Site contains the current site definition, service states, and saved operation results. Unset
@@ -138,9 +149,17 @@ message StatusResponse {
   repeated Site sites = 8;
   // Errors maps site names to failures encountered while reading their status.
   map<string, string> errors = 9;
+  // KeptBytes estimates bytes used by current, history, and rejected images across services.
+  // Each distinct image is counted in full per service, so shared layers count more than once.
   int64 kept_bytes = 10;
+  // WorstBytes estimates usage at the configured limits, including room for an incoming image
+  // as large as each service's current image. It is not a hard upper bound.
   int64 worst_bytes = 11;
+  // FreeBytes is available space on the configured image-storage filesystem. It is -1 when
+  // the filesystem is unknown or its free space could not be measured.
   int64 free_bytes = 12;
+  // Warnings reports capacity concerns or a failure to measure storage. KeptBytes and
+  // WorstBytes are zero if image sizes cannot be read. Unknown free space does not discard them.
   repeated string warnings = 13;
 }
 
@@ -215,6 +234,7 @@ message CheckRequest {
 // for one site.
 message CheckResult {
   string site = 1;
+  // Deployed includes manual and pinned services when a check starts a new site.
   repeated Change deployed = 2;
   // Waiting contains only manual updates newly recorded by this check.
   repeated Change waiting = 3;
@@ -226,9 +246,13 @@ message CheckResponse {
   repeated CheckResult results = 1;
 }
 
-// RollbackRequest selects a site whose previous images should be restored.
+// RollbackRequest selects a retained image independently for each service in a site.
 message RollbackRequest {
   string site = 1;
+  // To is a one-based history index or an image ID prefix of at least four characters. An empty
+  // value selects index 1. ID prefixes ignore an optional sha256: prefix and must be unique
+  // within each service. Ambiguity rejects the entire operation before containers change.
+  // Services without a match are skipped.
   string to = 2;
 }
 
@@ -285,8 +309,8 @@ message Setting {
   string value = 2;
 }
 
-// GetConfigResponse lists settings in CLI display order and includes the default poll value
-// when unset.
+// GetConfigResponse lists settings in CLI display order, supplying defaults for unset polling
+// and retention settings.
 message GetConfigResponse {
   repeated Setting settings = 1;
 }
@@ -298,7 +322,7 @@ message SetConfigRequest {
 }
 
 // SetConfigResponse confirms that the setting and any required proxy or polling updates
-// succeeded.
+// succeeded. Retention setting changes take effect on the next trim, not during this call.
 message SetConfigResponse {
   repeated string warnings = 1;
 }
@@ -366,8 +390,12 @@ message DockerLoginRequest {
 // DockerLoginResponse confirms that registry login succeeded.
 message DockerLoginResponse {}
 
+// PruneRequest requests history trimming and daemon-wide dangling-image pruning.
 message PruneRequest {}
 
+// PruneResponse reports the space reclaimed by Docker's image prune step. It excludes space
+// freed by the preceding history trim.
 message PruneResponse {
+  // Reclaimed is Docker's formatted size, such as "123.4MB", rather than a byte count.
   string reclaimed = 1;
 }

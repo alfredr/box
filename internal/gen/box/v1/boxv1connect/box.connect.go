@@ -93,10 +93,11 @@ type BoxServiceClient interface {
 	// Deploy pulls eligible images and starts the requested services. Failed startup triggers an
 	// attempt to restore earlier images. Work continues after a client disconnect.
 	Deploy(context.Context, *v1.DeployRequest) (*v1.DeployResponse, error)
-	// Check pulls non-pinned images and applies each service update policy. Checks skip rejected
-	// images and do not deploy services without containers.
+	// Check pulls non-pinned images and applies each service update policy. A first automatic
+	// deployment starts the whole site. Later checks skip rejected images and services without
+	// containers.
 	Check(context.Context, *v1.CheckRequest) (*v1.CheckResponse, error)
-	// Rollback restores recorded previous images and excludes the replaced images from subsequent
+	// Rollback restores selected history images and excludes the replaced images from subsequent
 	// checks. It does not restore configuration or volume data.
 	Rollback(context.Context, *v1.RollbackRequest) (*v1.RollbackResponse, error)
 	// Logs streams container output. Client cancellation ends the stream.
@@ -125,6 +126,8 @@ type BoxServiceClient interface {
 	DockerInfo(context.Context, *v1.DockerInfoRequest) (*v1.DockerInfoResponse, error)
 	// DockerLogin saves registry credentials through the server Docker CLI for site image pulls.
 	DockerLogin(context.Context, *v1.DockerLoginRequest) (*v1.DockerLoginResponse, error)
+	// Prune applies retention limits to all sites and prunes unused dangling images across the
+	// Docker daemon, including images unrelated to box. It runs even when BOX_PRUNE is off.
 	Prune(context.Context, *v1.PruneRequest) (*v1.PruneResponse, error)
 }
 
@@ -480,10 +483,11 @@ type BoxServiceHandler interface {
 	// Deploy pulls eligible images and starts the requested services. Failed startup triggers an
 	// attempt to restore earlier images. Work continues after a client disconnect.
 	Deploy(context.Context, *v1.DeployRequest) (*v1.DeployResponse, error)
-	// Check pulls non-pinned images and applies each service update policy. Checks skip rejected
-	// images and do not deploy services without containers.
+	// Check pulls non-pinned images and applies each service update policy. A first automatic
+	// deployment starts the whole site. Later checks skip rejected images and services without
+	// containers.
 	Check(context.Context, *v1.CheckRequest) (*v1.CheckResponse, error)
-	// Rollback restores recorded previous images and excludes the replaced images from subsequent
+	// Rollback restores selected history images and excludes the replaced images from subsequent
 	// checks. It does not restore configuration or volume data.
 	Rollback(context.Context, *v1.RollbackRequest) (*v1.RollbackResponse, error)
 	// Logs streams container output. Client cancellation ends the stream.
@@ -512,6 +516,8 @@ type BoxServiceHandler interface {
 	DockerInfo(context.Context, *v1.DockerInfoRequest) (*v1.DockerInfoResponse, error)
 	// DockerLogin saves registry credentials through the server Docker CLI for site image pulls.
 	DockerLogin(context.Context, *v1.DockerLoginRequest) (*v1.DockerLoginResponse, error)
+	// Prune applies retention limits to all sites and prunes unused dangling images across the
+	// Docker daemon, including images unrelated to box. It runs even when BOX_PRUNE is off.
 	Prune(context.Context, *v1.PruneRequest) (*v1.PruneResponse, error)
 }
 

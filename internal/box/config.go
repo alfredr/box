@@ -42,8 +42,12 @@ type Config struct {
 	// delivery.
 	Notify string `json:"notify,omitempty"`
 	// Poll is a Go duration string or "off". An empty value uses DefaultPoll.
-	Poll   string `json:"poll,omitempty"`
-	Keep   string `json:"keep,omitempty"`
+	Poll string `json:"poll,omitempty"`
+	// Keep is the default number of earlier images retained per service, from 0 to 100. An empty
+	// value uses DefaultKeep.
+	Keep string `json:"keep,omitempty"`
+	// Budget is the default per-service size limit accepted by ParseSize. Empty and "off"
+	// disable the byte limit. The current image is retained even if it exceeds the limit.
 	Budget string `json:"budget,omitempty"`
 }
 
@@ -107,7 +111,7 @@ func (c Config) HookURL(site string) (string, error) {
 	return "https://" + c.Domain + "/deploy/" + site, nil
 }
 
-// Get returns a setting by name. Reading an unset poll setting returns DefaultPoll.
+// Get returns a setting by name, supplying defaults for unset poll, keep, and budget values.
 func (c Config) Get(key string) (string, error) {
 	switch key {
 	case "domain":

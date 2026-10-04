@@ -17,7 +17,7 @@ import (
 type Policy string
 
 const (
-	// Auto deploys a changed image when the service already has a container.
+	// Auto deploys changed images and allows a check to start a site that has never been deployed.
 	Auto Policy = "auto"
 	// Manual records a changed image for an explicit deployment.
 	Manual Policy = "manual"
@@ -36,13 +36,16 @@ func ParsePolicy(s string) (Policy, error) {
 	return "", fmt.Errorf("update policy %q: want auto, manual or pinned", s)
 }
 
-// Service contains the image reference and update policy read from a Compose service
-// definition.
+// Service contains the image reference, update policy, and retention overrides read from a
+// Compose service definition. Use negative Keep and Budget values to inherit server settings.
 type Service struct {
 	Name   string
 	Image  string
 	Policy Policy
-	Keep   int
+	// Keep limits earlier images. A negative value inherits the server setting.
+	Keep int
+	// Budget limits estimated image storage in bytes. A negative value inherits the server
+	// setting, and zero disables the byte limit.
 	Budget int64
 }
 
@@ -120,9 +123,10 @@ type composeFile struct {
 	} `yaml:"services"`
 }
 
-// ParseSite reads service images, update policies, and Caddy domains from Compose YAML. Image
-// references must be literal, and services without a policy use Manual. It does not perform
-// full Compose validation or validate name.
+// ParseSite reads service images, update policies, retention limits, and Caddy domains from
+// Compose YAML. Image references must be literal. Services without a policy use Manual, and
+// omitted limits inherit server settings. It does not perform full Compose validation or
+// validate name.
 func ParseSite(name string, data []byte) (Site, error) {
 	site, err := parseSite(name, data)
 	if err != nil {

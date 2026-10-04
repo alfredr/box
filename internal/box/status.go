@@ -13,10 +13,14 @@ type ServiceStatus struct {
 	State string
 	// Running is the image ID used to create the inspected container, even if that container is
 	// stopped.
-	Running   string
-	Pending   string
-	History   []Kept
-	Limits    Limits
+	Running string
+	// Pending is an image ID recorded for manual deployment.
+	Pending string
+	// History lists retained earlier images, newest first.
+	History []Kept
+	Limits  Limits
+	// KeptBytes estimates storage for the recorded current image and history, excluding any
+	// rejected image. It is zero when Docker image sizes could not be read.
 	KeptBytes int64
 }
 

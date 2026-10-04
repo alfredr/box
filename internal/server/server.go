@@ -293,6 +293,7 @@ func (s *Server) Status(ctx context.Context, _ *boxv1.StatusRequest) (*boxv1.Sta
 		LastCheck: stamp(last),
 		NextCheck: stamp(next),
 		Notify:    cfg.Notify,
+		FreeBytes: -1,
 	}
 
 	names, err := box.ListSites()
@@ -441,7 +442,7 @@ func (s *Server) Check(ctx context.Context, req *boxv1.CheckRequest) (*boxv1.Che
 	return out, nil
 }
 
-// Rollback restores a site to its recorded previous images and excludes the replaced images
+// Rollback restores selected images from a site's history and excludes the replaced images
 // from subsequent checks.
 func (s *Server) Rollback(ctx context.Context, req *boxv1.RollbackRequest) (*boxv1.RollbackResponse, error) {
 	cfg, err := box.LoadConfig()
@@ -509,8 +510,8 @@ func (s *Server) ApplyCompose(ctx context.Context, req *boxv1.ApplyComposeReques
 	return &boxv1.ApplyComposeResponse{Warnings: box.Warnings(ctx, cfg)}, nil
 }
 
-// GetConfig returns supported settings in CLI display order, including the effective default
-// polling interval.
+// GetConfig returns supported settings in CLI display order, including effective defaults for
+// polling and image retention.
 func (s *Server) GetConfig(ctx context.Context, _ *boxv1.GetConfigRequest) (*boxv1.GetConfigResponse, error) {
 	cfg, err := box.LoadConfig()
 	if err != nil {
@@ -666,8 +667,8 @@ func (s *Server) DockerInfo(ctx context.Context, _ *boxv1.DockerInfoRequest) (*b
 	}, nil
 }
 
-// DockerLogin saves registry credentials through the server Docker CLI for later site image
-// pulls.
+// Prune applies current retention limits to all sites, then removes unused dangling images
+// across the Docker daemon. Explicit pruning runs even when automatic pruning is disabled.
 func (s *Server) Prune(ctx context.Context, _ *boxv1.PruneRequest) (*boxv1.PruneResponse, error) {
 	cfg, err := box.LoadConfig()
 	if err != nil {
@@ -686,6 +687,8 @@ func (s *Server) Prune(ctx context.Context, _ *boxv1.PruneRequest) (*boxv1.Prune
 	return &boxv1.PruneResponse{Reclaimed: reclaimed}, nil
 }
 
+// DockerLogin saves registry credentials through the server Docker CLI for later site image
+// pulls.
 func (s *Server) DockerLogin(ctx context.Context, req *boxv1.DockerLoginRequest) (*boxv1.DockerLoginResponse, error) {
 	return &boxv1.DockerLoginResponse{}, box.DockerLogin(ctx, req.Registry, req.Username, req.Password)
 }

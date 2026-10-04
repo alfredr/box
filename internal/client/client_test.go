@@ -1,7 +1,12 @@
 package client
 
 import (
+	"context"
 	"encoding/base64"
+	"encoding/json"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
@@ -93,5 +98,70 @@ func TestDockerConfig(t *testing.T) {
 
 	if !strings.Contains(string(b), `"ghcr.io"`) || !strings.Contains(string(b), base64.StdEncoding.EncodeToString([]byte("me:pw"))) {
 		t.Errorf("config.json = %s", b)
+	}
+}
+
+func TestReplacePreservesImageStorage(t *testing.T) {
+	for _, failMount := range []bool{false, true} {
+		t.Run(map[bool]string{false: "preserve mount", true: "invalid mount keeps server running"}[failMount], func(t *testing.T) {
+			stopped := false
+			creates := 0
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case strings.HasSuffix(r.URL.Path, "/containers/box/json"):
+					w.Write([]byte(`{"Id":"old","Config":{"Image":"box:old"},"Mounts":[{"Type":"bind","Source":"/data/containerd","Destination":"/box-image-store"}]}`))
+				case strings.HasSuffix(r.URL.Path, "/containers/new/json"):
+					w.Write([]byte(`{"Id":"new","State":{"Status":"running","Health":{"Status":"healthy"}}}`))
+				case strings.HasSuffix(r.URL.Path, "/containers/create"):
+					creates++
+					var body struct {
+						Env        []string
+						HostConfig struct {
+							Mounts []struct {
+								Source, Target string
+								ReadOnly       bool
+							}
+						}
+					}
+					if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+						t.Error(err)
+					}
+					if len(body.HostConfig.Mounts) != 1 || body.HostConfig.Mounts[0].Source != "/data/containerd" || !body.HostConfig.Mounts[0].ReadOnly {
+						t.Errorf("storage mount = %+v", body.HostConfig.Mounts)
+					}
+					if failMount {
+						w.WriteHeader(http.StatusBadRequest)
+						w.Write([]byte(`{"message":"bind source path does not exist"}`))
+						return
+					}
+					if r.URL.Query().Get("name") == "box" {
+						if !slices.Contains(body.Env, "BOX_IMAGE_STORE=/box-image-store") {
+							t.Errorf("env = %v", body.Env)
+						}
+						w.Write([]byte(`{"Id":"new"}`))
+					} else {
+						w.Write([]byte(`{"Id":"probe"}`))
+					}
+				case strings.HasSuffix(r.URL.Path, "/stop"):
+					stopped = true
+				case r.Method == http.MethodDelete, strings.HasSuffix(r.URL.Path, "/start"):
+				default:
+					t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+					w.WriteHeader(http.StatusInternalServerError)
+				}
+			}))
+			defer ts.Close()
+			eng := engine.New(func(ctx context.Context) (net.Conn, error) {
+				return (&net.Dialer{}).DialContext(ctx, "tcp", ts.Listener.Addr().String())
+			})
+			err := replace(t.Context(), eng, DefaultServer("box:new"))
+			if failMount {
+				if err == nil || stopped {
+					t.Fatalf("invalid mount: err %v, stopped %v", err, stopped)
+				}
+			} else if err != nil || !stopped || creates != 2 {
+				t.Fatalf("replacement: err %v, stopped %v, creates %d", err, stopped, creates)
+			}
+		})
 	}
 }

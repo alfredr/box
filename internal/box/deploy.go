@@ -247,9 +247,13 @@ func settle(ctx context.Context, cfg Config, site Site, svcs []Service, before, 
 	return changes
 }
 
+// remember retains the replaced image and removes the new current image from history. Revisiting
+// an image therefore moves its predecessor to the front without duplicating entries. Tagging
+// failures are logged and do not fail the deployment. The caller must hold the site lock and
+// save rec.
 func remember(ctx context.Context, site string, s Service, from, to string, rec *Record) {
 	cur := keepRef(site, s.Name)
-	wasKept := slices.ContainsFunc(rec.History[s.Name], func(k Kept) bool { return k.ID == to })
+	oldHistory := rec.History[s.Name]
 	hist := slices.DeleteFunc(slices.Clone(rec.History[s.Name]), func(k Kept) bool { return k.ID == from || k.ID == to })
 	if from != "" {
 		src := cur
@@ -270,8 +274,10 @@ func remember(ctx context.Context, site string, s Service, from, to string, rec 
 		}
 	}
 
-	if wasKept {
-		docker(ctx, "image", "rm", histRef(site, s.Name, to))
+	for _, k := range oldHistory {
+		if k.ID == to || (k.ID == from && k.Legacy) {
+			docker(ctx, "image", "rm", retainedRef(site, s.Name, k))
+		}
 	}
 
 	setHistory(rec, s.Name, hist)
@@ -282,9 +288,10 @@ func remember(ctx context.Context, site string, s Service, from, to string, rec 
 	rec.Since[s.Name] = time.Now()
 }
 
-// Rollback restores services to an image from their history: the most recent one when target
-// is empty, the nth when it is a number, or the one whose ID starts with target. The images it
-// replaces join the history and are recorded as rejected so checks skip them. It does not
+// Rollback selects a retained image by one-based history index or unique ID prefix. An empty
+// target selects index 1. Selection is per service, and services without a match are skipped.
+// Ambiguity rejects the operation before containers change. Replaced images enter history and
+// are recorded as rejected so checks skip them. Retention limits still apply. Rollback does not
 // restore Compose configuration or volume data.
 func Rollback(ctx context.Context, cfg Config, name, target string) ([]Change, error) {
 	defer tidy(ctx)
@@ -314,14 +321,18 @@ func Rollback(ctx context.Context, cfg Config, name, target string) ([]Change, e
 	var svcs []Service
 	sources := map[string]string{}
 	for _, s := range site.Services {
-		k, ok := pickTarget(rec.History[s.Name], target)
+		k, ok, err := pickTarget(rec.History[s.Name], target)
+		if err != nil {
+			return nil, Invalid(fmt.Errorf("%s/%s: %w", name, s.Name, err))
+		}
+
 		if !ok || k.ID == before[s.Name] {
 			continue
 		}
 
 		svcs = append(svcs, s)
 		sources[s.Name] = k.ID
-		if ref := histRef(name, s.Name, k.ID); imageID(ctx, ref) == k.ID {
+		if ref := retainedRef(name, s.Name, k); imageID(ctx, ref) == k.ID {
 			sources[s.Name] = ref
 		}
 	}
@@ -378,7 +389,8 @@ func Rollback(ctx context.Context, cfg Config, name, target string) ([]Change, e
 // CheckResult reports changes and any failure from one site image check.
 type CheckResult struct {
 	Site string
-	// Deployed contains image changes applied to automatic services during this check.
+	// Deployed contains image changes applied during this check. A first deployment can
+	// include manual and pinned services.
 	Deployed []Change
 	// Waiting contains newly discovered manual updates. Previously reported pending images are
 	// omitted.
@@ -386,10 +398,11 @@ type CheckResult struct {
 	Err     error
 }
 
-// Check pulls images for all non-pinned services and applies their update policies. A site that
-// has never been deployed starts once its auto services have images. Otherwise it skips
-// deployment for services without containers and for rejected images. New manual updates are
-// recorded and announced once. The site lock is held for the entire check.
+// Check pulls images for all non-pinned services and applies their update policies. A site with
+// neither containers nor a recorded successful deployment starts in full after a successful
+// pull check finds at least one auto image. Otherwise, services without containers and rejected
+// images are not deployed. New manual updates are recorded and announced once. The site lock
+// covers the check and any deployment.
 func Check(ctx context.Context, cfg Config, name string) CheckResult {
 	r := CheckResult{Site: name}
 	defer func() {
@@ -451,8 +464,9 @@ func Check(ctx context.Context, cfg Config, name string) CheckResult {
 
 	rec.CheckError = ""
 
-	// A site that has never been deployed starts once its auto services have images, so CI can bring up a new site
-	// with its first push. A site that was deployed and later stopped is left alone.
+	// Start the whole project on its first automatic deployment so dependencies start too.
+	// The saved deployment time prevents this path from recreating a previously deployed site
+	// after all its containers have been removed.
 	if rec.DeployedAt.IsZero() && len(before) == 0 {
 		if err := rec.save(name); err != nil {
 			r.Err = err
@@ -638,7 +652,8 @@ func Apply(ctx context.Context, cfg Config, name string, compose []byte) error {
 
 // Remove stops a site and removes its secret and deployment record. With purge set, it also
 // deletes Compose-managed volumes and the site directory. Otherwise it preserves volumes, moves
-// the directory under removed/, and returns that path.
+// the directory under removed/, and returns that path. Both modes attempt to remove retention
+// tags and the image references in the Compose file.
 func Remove(ctx context.Context, name string, purge bool) (string, error) {
 	defer tidy(ctx)
 

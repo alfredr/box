@@ -9,6 +9,8 @@ import (
 
 func rejectRef(site, service string) string { return keepRef(site, service) + "-rejected" }
 
+// hold tags a rejected image before recovery moves the service tag back to its earlier image.
+// This keeps image pruning from deleting the rejected image and forcing checks to pull it again.
 func hold(ctx context.Context, site string, s Service, id string) {
 	ref := rejectRef(site, s.Name)
 	docker(ctx, "image", "rm", ref)
@@ -23,6 +25,8 @@ func release(ctx context.Context, site, service string) {
 	docker(ctx, "image", "rm", rejectRef(site, service))
 }
 
+// forget attempts to remove the site's retention tags and the image references in its Compose
+// file. Docker removal errors are ignored, and image removal is never forced.
 func forget(ctx context.Context, site Site) {
 	out, _ := docker(ctx, "images", "--filter", "reference=box-keep/"+site.Name+":*", "--format", "{{.Repository}}:{{.Tag}}")
 	refs := strings.Fields(out)
@@ -37,6 +41,9 @@ func forget(ctx context.Context, site Site) {
 
 func pruneEnabled() bool { return os.Getenv("BOX_PRUNE") != "off" }
 
+// Prune removes unused dangling images across the Docker daemon, including images unrelated to
+// box. It returns Docker's formatted reclaimed size and runs even when BOX_PRUNE is off. It does
+// not prune volumes or build cache.
 func Prune(ctx context.Context) (string, error) {
 	out, err := docker(ctx, "image", "prune", "--force")
 	if err != nil {
@@ -56,6 +63,8 @@ func reclaimedFrom(out string) string {
 	return "0B"
 }
 
+// tidy runs best-effort image pruning unless BOX_PRUNE is off. Site mutations defer it until
+// after releasing the site lock.
 func tidy(ctx context.Context) {
 	if !pruneEnabled() {
 		return

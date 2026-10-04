@@ -100,11 +100,16 @@ type Service struct {
 	// Pending is an image ID recorded for manual deployment.
 	Pending string `protobuf:"bytes,7,opt,name=pending,proto3" json:"pending,omitempty"`
 	// Rejected is an image ID skipped by checks after a failed deployment or rollback.
-	Rejected      string       `protobuf:"bytes,8,opt,name=rejected,proto3" json:"rejected,omitempty"`
-	History       []*KeptImage `protobuf:"bytes,9,rep,name=history,proto3" json:"history,omitempty"`
-	Keep          int32        `protobuf:"varint,10,opt,name=keep,proto3" json:"keep,omitempty"`
-	Budget        int64        `protobuf:"varint,11,opt,name=budget,proto3" json:"budget,omitempty"`
-	KeptBytes     int64        `protobuf:"varint,12,opt,name=kept_bytes,json=keptBytes,proto3" json:"kept_bytes,omitempty"`
+	Rejected string `protobuf:"bytes,8,opt,name=rejected,proto3" json:"rejected,omitempty"`
+	// History lists retained earlier images, newest first.
+	History []*KeptImage `protobuf:"bytes,9,rep,name=history,proto3" json:"history,omitempty"`
+	// Keep is the effective limit on the number of earlier images, excluding the current image.
+	Keep int32 `protobuf:"varint,10,opt,name=keep,proto3" json:"keep,omitempty"`
+	// Budget is the effective byte limit for the current image and history. Zero disables it.
+	Budget int64 `protobuf:"varint,11,opt,name=budget,proto3" json:"budget,omitempty"`
+	// KeptBytes estimates storage for the recorded current image and history, excluding any
+	// rejected image. It is zero when image sizes could not be read.
+	KeptBytes     int64 `protobuf:"varint,12,opt,name=kept_bytes,json=keptBytes,proto3" json:"kept_bytes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -216,9 +221,12 @@ func (x *Service) GetKeptBytes() int64 {
 	return 0
 }
 
+// KeptImage identifies an earlier service image retained for rollback.
 type KeptImage struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Id is the full Docker image ID, including its algorithm prefix.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// DeployedAt records when this image most recently became current. It is absent if unknown.
 	DeployedAt    *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=deployed_at,json=deployedAt,proto3" json:"deployed_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -560,11 +568,19 @@ type StatusResponse struct {
 	Notify    string                 `protobuf:"bytes,7,opt,name=notify,proto3" json:"notify,omitempty"`
 	Sites     []*Site                `protobuf:"bytes,8,rep,name=sites,proto3" json:"sites,omitempty"`
 	// Errors maps site names to failures encountered while reading their status.
-	Errors        map[string]string `protobuf:"bytes,9,rep,name=errors,proto3" json:"errors,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	KeptBytes     int64             `protobuf:"varint,10,opt,name=kept_bytes,json=keptBytes,proto3" json:"kept_bytes,omitempty"`
-	WorstBytes    int64             `protobuf:"varint,11,opt,name=worst_bytes,json=worstBytes,proto3" json:"worst_bytes,omitempty"`
-	FreeBytes     int64             `protobuf:"varint,12,opt,name=free_bytes,json=freeBytes,proto3" json:"free_bytes,omitempty"`
-	Warnings      []string          `protobuf:"bytes,13,rep,name=warnings,proto3" json:"warnings,omitempty"`
+	Errors map[string]string `protobuf:"bytes,9,rep,name=errors,proto3" json:"errors,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// KeptBytes estimates bytes used by current, history, and rejected images across services.
+	// Each distinct image is counted in full per service, so shared layers count more than once.
+	KeptBytes int64 `protobuf:"varint,10,opt,name=kept_bytes,json=keptBytes,proto3" json:"kept_bytes,omitempty"`
+	// WorstBytes estimates usage at the configured limits, including room for an incoming image
+	// as large as each service's current image. It is not a hard upper bound.
+	WorstBytes int64 `protobuf:"varint,11,opt,name=worst_bytes,json=worstBytes,proto3" json:"worst_bytes,omitempty"`
+	// FreeBytes is available space on the configured image-storage filesystem. It is -1 when
+	// the filesystem is unknown or its free space could not be measured.
+	FreeBytes int64 `protobuf:"varint,12,opt,name=free_bytes,json=freeBytes,proto3" json:"free_bytes,omitempty"`
+	// Warnings reports capacity concerns or a failure to measure storage. KeptBytes and
+	// WorstBytes are zero if image sizes cannot be read. Unknown free space does not discard them.
+	Warnings      []string `protobuf:"bytes,13,rep,name=warnings,proto3" json:"warnings,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1190,9 +1206,10 @@ func (x *CheckRequest) GetSites() []string {
 // CheckResult reports automatic deployments, newly discovered manual updates, and any failure
 // for one site.
 type CheckResult struct {
-	state    protoimpl.MessageState `protogen:"open.v1"`
-	Site     string                 `protobuf:"bytes,1,opt,name=site,proto3" json:"site,omitempty"`
-	Deployed []*Change              `protobuf:"bytes,2,rep,name=deployed,proto3" json:"deployed,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Site  string                 `protobuf:"bytes,1,opt,name=site,proto3" json:"site,omitempty"`
+	// Deployed includes manual and pinned services when a check starts a new site.
+	Deployed []*Change `protobuf:"bytes,2,rep,name=deployed,proto3" json:"deployed,omitempty"`
 	// Waiting contains only manual updates newly recorded by this check.
 	Waiting       []*Change `protobuf:"bytes,3,rep,name=waiting,proto3" json:"waiting,omitempty"`
 	Error         string    `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
@@ -1303,11 +1320,15 @@ func (x *CheckResponse) GetResults() []*CheckResult {
 	return nil
 }
 
-// RollbackRequest selects a site whose previous images should be restored.
+// RollbackRequest selects a retained image independently for each service in a site.
 type RollbackRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Site          string                 `protobuf:"bytes,1,opt,name=site,proto3" json:"site,omitempty"`
-	To            string                 `protobuf:"bytes,2,opt,name=to,proto3" json:"to,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Site  string                 `protobuf:"bytes,1,opt,name=site,proto3" json:"site,omitempty"`
+	// To is a one-based history index or an image ID prefix of at least four characters. An empty
+	// value selects index 1. ID prefixes ignore an optional sha256: prefix and must be unique
+	// within each service. Ambiguity rejects the entire operation before containers change.
+	// Services without a match are skipped.
+	To            string `protobuf:"bytes,2,opt,name=to,proto3" json:"to,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1798,8 +1819,8 @@ func (x *Setting) GetValue() string {
 	return ""
 }
 
-// GetConfigResponse lists settings in CLI display order and includes the default poll value
-// when unset.
+// GetConfigResponse lists settings in CLI display order, supplying defaults for unset polling
+// and retention settings.
 type GetConfigResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Settings      []*Setting             `protobuf:"bytes,1,rep,name=settings,proto3" json:"settings,omitempty"`
@@ -1898,7 +1919,7 @@ func (x *SetConfigRequest) GetValue() string {
 }
 
 // SetConfigResponse confirms that the setting and any required proxy or polling updates
-// succeeded.
+// succeeded. Retention setting changes take effect on the next trim, not during this call.
 type SetConfigResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Warnings      []string               `protobuf:"bytes,1,rep,name=warnings,proto3" json:"warnings,omitempty"`
@@ -2518,6 +2539,7 @@ func (*DockerLoginResponse) Descriptor() ([]byte, []int) {
 	return file_box_v1_box_proto_rawDescGZIP(), []int{44}
 }
 
+// PruneRequest requests history trimming and daemon-wide dangling-image pruning.
 type PruneRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -2554,9 +2576,12 @@ func (*PruneRequest) Descriptor() ([]byte, []int) {
 	return file_box_v1_box_proto_rawDescGZIP(), []int{45}
 }
 
+// PruneResponse reports the space reclaimed by Docker's image prune step. It excludes space
+// freed by the preceding history trim.
 type PruneResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Reclaimed     string                 `protobuf:"bytes,1,opt,name=reclaimed,proto3" json:"reclaimed,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Reclaimed is Docker's formatted size, such as "123.4MB", rather than a byte count.
+	Reclaimed     string `protobuf:"bytes,1,opt,name=reclaimed,proto3" json:"reclaimed,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

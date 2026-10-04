@@ -272,6 +272,7 @@ func cmdSetup(ctx context.Context, serverName string, args []string) error {
 	domain := fs.String("domain", "", "where the server is reached, for this client and for webhooks (needs a DNS record)")
 	email := fs.String("email", "", "ACME account email for certificates")
 	image := fs.String("image", client.DefaultImage, "server image")
+	imageStore := fs.String("image-store", "", "host image storage directory for disk capacity checks (required for containerd)")
 	login := fs.String("login", "", "registry to log in to for a private server image, such as ghcr.io")
 	install := fs.Bool("install-docker", false, "install Docker without asking if it's missing")
 	logSize := fs.String("log-size", "10m", "rotate container logs at this size")
@@ -310,6 +311,7 @@ func cmdSetup(ctx context.Context, serverName string, args []string) error {
 			Log:    func(s string) { fmt.Println(s) },
 		},
 	}
+	opts.Server.ImageStore = *imageStore
 	if !*keepDaemon {
 		opts.Daemon = box.DaemonSettings{LogSize: *logSize, LogFiles: *logFiles, LiveRestore: live}
 	}
@@ -623,8 +625,13 @@ func hostStatus(ctx context.Context, c *conn) error {
 	fmt.Printf("proxy    %s\n", st.Proxy)
 	fmt.Printf("polling  %s\n", poll)
 	fmt.Printf("notify   %s\n", notify)
-	fmt.Printf("images   %s kept, up to %s with the current limits, %s free\n\n",
-		box.FormatSize(st.KeptBytes), box.FormatSize(st.WorstBytes), box.FormatSize(st.FreeBytes))
+	free := "unavailable"
+	if st.FreeBytes >= 0 {
+		free = box.FormatSize(st.FreeBytes)
+	}
+
+	fmt.Printf("images   %s kept, up to %s with the current limits, free space %s\n\n",
+		box.FormatSize(st.KeptBytes), box.FormatSize(st.WorstBytes), free)
 	printWarnings(st.Warnings)
 
 	if len(st.Sites)+len(st.Errors) == 0 {

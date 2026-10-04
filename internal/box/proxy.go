@@ -70,7 +70,8 @@ func ProxyState(ctx context.Context) string {
 }
 
 // Prepare creates storage directories, ensures the shared network exists, and writes proxy
-// configuration. It also starts the proxy when proxy is true.
+// configuration. It starts the proxy when proxy is true. Unless BOX_PRUNE is off, it also
+// attempts to remove older proxy image tags and prunes unused dangling images across the daemon.
 func Prepare(ctx context.Context, cfg Config, listen string, proxy bool) error {
 	for _, d := range []string{sitesDir(), stateDir(), proxyDir()} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
